@@ -1,21 +1,35 @@
 """
-API for Recipe Keeper Application.
+RAG Chatbot Application.
 
-This module provides endpoints for CRUD operations on recipes.
-It uses a JSON file for storage, and FastAPI for the web server.
+This module provides endpoints for CRUD operations on DA.
+It uses SQLite + SQLAlchemy.orm for storage, and FastAPI for the server.
 """
 
-from fastapi import FastAPI, HTTPException
+import os
+import sys
+import logging
 from datamanager.datamanager import SQLiteDataManager
 import uvicorn
-import logging
+from fastapi import FastAPI, HTTPException
+import google.generativeai as genai
+from dotenv import load_dotenv, find_dotenv
+if not find_dotenv():
+    print("Error: .env file not found. Consult README.md")
+    sys.exit(1)
 import schemas.schemas as schemas
-
-data_manager = SQLiteDataManager()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+data_manager = SQLiteDataManager()
 app = FastAPI()
+
+load_dotenv()
+API_KEY = os.getenv('API_KEY')
+genai.configure(api_key=os.environ.get(API_KEY))
+model = genai.GenerativeModel(model_name="gemini-1.5-flash")
+# response = model.generate_content("Explain how AI works")
+# print(response.text)
 
 
 @app.post("/login")

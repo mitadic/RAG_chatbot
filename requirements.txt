@@ -2,3 +2,9 @@ pydantic
 sqlalchemy
 fastapi
 uvicorn
+python-dotenv
+google-api-python-client
+google
+google.generativeai
+# google-cloud
+# google-cloud-vision
