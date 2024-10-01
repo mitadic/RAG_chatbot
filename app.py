@@ -88,6 +88,7 @@ def user_homepage(user_id: int):
 
 @app.post("/users/{user_id}/convos/")
 def create_convo(user_id: int, convo: schemas.ConvoCreate):
+    """Enforce title creation to start a Convo"""
     if not data_manager.retrieve_user(user_id):
         raise HTTPException(status_code=404, detail="Bad user ID")
     try:
@@ -99,6 +100,9 @@ def create_convo(user_id: int, convo: schemas.ConvoCreate):
 
 @app.get("/users/{user_id}/convos/{convo_id}")
 def load_convo(user_id: int, convo_id: int):
+    """Retrieve the conversation as a composite of:
+        (1) Convo object
+        (2) The QAPair objects with the appropriate convo_id"""
     if not data_manager.retrieve_user(user_id):
         raise HTTPException(status_code=404, detail="User not found")
     convo = data_manager.load_convo(user_id, convo_id)
@@ -111,12 +115,30 @@ def load_convo(user_id: int, convo_id: int):
 
 @app.post("/users/{user_id}/convos/{convo_id}")
 def submit_query(user_id: int, convo_id: int, qa_pair: schemas.QAPairCreate):
+    """Initiate a QAPair by submitting a query, which, if successful will
+    also fetch a response from the LLM API and store it.
+    :return: Type[schemas.QAPair]"""
     if not data_manager.retrieve_user(user_id):
         raise HTTPException(status_code=404, detail="User not found")
     if not data_manager.load_convo(user_id, convo_id):
         raise HTTPException(status_code=404, detail="Convo not found")
     qa_pair = data_manager.init_qa_pair(convo_id, qa_pair.query)
+    # TODO: response
+    response = model.generate_content(qa_pair.query)
+    print(response.text)
+    qa_pair = data_manager.finalise_qa_pair(qa_pair, response.text)
     return qa_pair
+
+
+@app.put("/users/{user_id}/convos/{convo_id}")
+def update_query(user_id: int, convo_id: int, qa_pair: schemas.QAPair):
+    """Refresh a QAPair by replacing the query, which, if successful will
+    also fetch a new response from the LLM API and replace the old one.
+    :return: Type[schemas.QAPair]"""
+    if not data_manager.retrieve_user(user_id):
+        raise HTTPException(status_code=404, detail="User not found")
+    if not data_manager.load_convo(user_id, convo_id):
+        raise HTTPException(status_code=404, detail="Convo not found")
 
 
 # @app.post("/recipes", status_code=status.HTTP_201_CREATED)

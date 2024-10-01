@@ -60,7 +60,7 @@ class QAPair(QAPairCreate):
 	"""
 	id: int
 	convo_id: int
-	response: str
+	response: str | None = None
 	timestamp: datetime
 
 	class Config:

@@ -104,6 +104,15 @@ class SQLiteDataManager():
         self.db_session.refresh(new_qa)
         return new_qa
 
+    def finalise_qa_pair(self, qa_pair: schemas.QAPair, response: str):
+        """Store the LMM response"""
+        self.db_session.query(QAPair).filter_by(id=qa_pair.id).update(
+            {'response': response}
+        )
+        self.db_session.commit()
+        qa_pair.response = response
+        return qa_pair
+
     def update_qa_pair(self, qa_pair_id: int, response: str):
         """
         Finalise or update the qa_pair by storing the response @ the id
