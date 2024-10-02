@@ -1,35 +1,23 @@
 """
 RAG Chatbot Application.
-
 This module provides endpoints for CRUD operations on DA.
-It uses SQLite + SQLAlchemy.orm for storage, and FastAPI for the server.
+It uses SQLite + SQLAlchemy.orm for storage, FastAPI for the server, and
+Gemini 1.5 API for generating responses.
 """
 
-import os
-import sys
 import logging
-from datamanager.datamanager import SQLiteDataManager
 import uvicorn
-from fastapi import FastAPI, HTTPException
-import google.generativeai as genai
-from dotenv import load_dotenv, find_dotenv
-if not find_dotenv():
-    print("Error: .env file not found. Consult README.md")
-    sys.exit(1)
+from fastapi import FastAPI, HTTPException, status
+from sqlalchemy.exc import SQLAlchemyError
 import schemas.schemas as schemas
+from datamanager.datamanager import SQLiteDataManager
+from utils.response_fetcher import fetch_llm_response
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 data_manager = SQLiteDataManager()
 app = FastAPI()
-
-load_dotenv()
-API_KEY = os.getenv('API_KEY')
-genai.configure(api_key=os.environ.get(API_KEY))
-model = genai.GenerativeModel(model_name="gemini-1.5-flash")
-# response = model.generate_content("Explain how AI works")
-# print(response.text)
 
 
 @app.post("/login")
@@ -41,7 +29,10 @@ def login(username: str, pw: str):
 @app.get("/users/")
 def list_users():
     """:return: List[Type[schemas.User]]"""
-    return data_manager.get_all_users()
+    try:
+        return data_manager.get_all_users()
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/users/")
@@ -54,12 +45,14 @@ def create_user(user: schemas.UserCreate):
     Not returning schemas.User because it contains the password
         obsolete attribute: response_model=schemas.User
     """
-    if not data_manager.is_available_email(user.email):
-        raise HTTPException(status_code=400, detail="Email already registered")
     try:
+        if not data_manager.is_available_email(user.email):
+            raise HTTPException(status_code=400,
+                                detail="Email already registered")
         new_user = data_manager.create_user(user=user)
+        print(f"User '{user.email}' added successfully!")
         return {"email": new_user.email, "id": str(new_user.id)}
-    except Exception as e:
+    except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -70,64 +63,113 @@ def delete_user(user_id: int):
     Raises: HTTPException: If the recipe with the specified ID is not found.
     Returns: dict: A status message indicating successful deletion and user_id.
     """
-    user = data_manager.retrieve_user(user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    data_manager.delete_user(user_id)
-    return {f"User '{user.email}' deleted successfully"}
+    try:
+        user = data_manager.retrieve_user(user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        user_convos = data_manager.get_convos(user_id)
+        for convo in user_convos:
+            qa_pairs = data_manager.get_qa_pairs(convo.id)
+            for qa_pair in qa_pairs:
+                data_manager.delete_qa_pair(qa_pair.id)
+                print(f"QAPair with id <{qa_pair.id}> successfully deleted")
+            data_manager.delete_convo(convo.id)
+            print(f"Convo '{convo.title}' deleted for user '{user.email}'")
+        data_manager.delete_user(user_id)
+        print(f"User '{user.email}' successfully deleted")
+        return {f"User '{user.email}' successfully deleted"}
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/users/{user_id}/convos")
 def user_homepage(user_id: int):
     """Fetch List of Convo objects which belong to this user"""
-    if not data_manager.retrieve_user(user_id):
-        raise HTTPException(status_code=404, detail="Bad user ID")
-    user_convos = data_manager.get_convos(user_id)
-    return user_convos
+    try:
+        if not data_manager.retrieve_user(user_id):
+            raise HTTPException(status_code=404, detail="Bad user ID")
+        user_convos = data_manager.get_convos(user_id)
+        print(f"Success fetching Convos for user with id <{user_id}>")
+        return user_convos
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/users/{user_id}/convos/")
+@app.post("/users/{user_id}/convos/", status_code=status.HTTP_201_CREATED)
 def create_convo(user_id: int, convo: schemas.ConvoCreate):
     """Enforce title creation to start a Convo"""
-    if not data_manager.retrieve_user(user_id):
-        raise HTTPException(status_code=404, detail="Bad user ID")
     try:
+        if not data_manager.retrieve_user(user_id):
+            raise HTTPException(status_code=404, detail="Bad user ID")
         convo = data_manager.create_convo(user_id, convo)
+        print(f"New Convo created for user_id <{user_id}>: '{convo.title}'")
         return convo
-    except Exception as e:
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/users/{user_id}/convos/{convo_id}")
+def delete_convo(user_id: int, convo_id: int):
+    try:
+        if not data_manager.retrieve_user(user_id):
+            raise HTTPException(status_code=404, detail="User not found")
+        convo = data_manager.load_convo(convo_id)
+        if not convo or convo.user_id != user_id:
+            raise HTTPException(status_code=404, detail="Convo not found")
+
+        data_manager.delete_convo(convo_id)
+        print(f"Conversation '{convo.title}' deleted for user_id {user_id}")
+        return {f"Conversation '{convo.title}' deleted successfully"}
+    except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/users/{user_id}/convos/{convo_id}")
 def load_convo(user_id: int, convo_id: int):
     """Retrieve the conversation as a composite of:
-        (1) Convo object
+        (1) Convo object which regards the user_id
         (2) The QAPair objects with the appropriate convo_id"""
-    if not data_manager.retrieve_user(user_id):
-        raise HTTPException(status_code=404, detail="User not found")
-    convo = data_manager.load_convo(user_id, convo_id)
-    if not convo:
-        raise HTTPException(status_code=404, detail="Convo not found")
-    qa_pairs = data_manager.load_qa_pairs(convo_id)
-    # sorted(qa_pairs, key=qa_pairs.)
-    return {"convo": convo, "qa_pairs": qa_pairs}
+    try:
+        if not data_manager.retrieve_user(user_id):
+            raise HTTPException(status_code=404, detail="User not found")
+        convo = data_manager.load_convo(convo_id)
+        if not convo or convo.user_id != user_id:
+            raise HTTPException(status_code=404, detail="Convo not found")
+
+        qa_pairs = data_manager.get_qa_pairs(convo_id)
+        # they seem sorted anyway, this is a temporary safeguard
+        qa_pairs = sorted(qa_pairs, key=lambda x: x.id)
+        return {"convo": convo, "qa_pairs": qa_pairs}
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/users/{user_id}/convos/{convo_id}")
-def submit_query(user_id: int, convo_id: int, qa_pair: schemas.QAPairCreate):
+@app.post(
+    "/users/{user_id}/convos/{convo_id}",
+    status_code=status.HTTP_201_CREATED
+)
+def submit_query(user_id: int, convo_id: int, qa_init: schemas.QAPairCreate):
     """Initiate a QAPair by submitting a query, which, if successful will
     also fetch a response from the LLM API and store it.
     :return: Type[schemas.QAPair]"""
-    if not data_manager.retrieve_user(user_id):
-        raise HTTPException(status_code=404, detail="User not found")
-    if not data_manager.load_convo(user_id, convo_id):
-        raise HTTPException(status_code=404, detail="Convo not found")
-    qa_pair = data_manager.init_qa_pair(convo_id, qa_pair.query)
-    # TODO: response
-    response = model.generate_content(qa_pair.query)
-    print(response.text)
-    qa_pair = data_manager.finalise_qa_pair(qa_pair, response.text)
-    return qa_pair
+    try:
+        if not data_manager.retrieve_user(user_id):
+            raise HTTPException(status_code=404, detail="User not found")
+        convo = data_manager.load_convo(convo_id)
+        if not convo or convo.user_id != user_id:
+            raise HTTPException(status_code=404, detail="Convo not found")
+
+        qa_pair = data_manager.init_qa_pair(convo_id, qa_init.query)
+        # here: wrap query in context, truths, etc.
+        response = fetch_llm_response(qa_pair.query)
+        if not response:
+            raise HTTPException(status_code=500, detail="LLM response fail")
+        qa_pair.response = response.text
+        data_manager.update_qa_pair(qa_pair)
+        return qa_pair
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.put("/users/{user_id}/convos/{convo_id}")
@@ -135,10 +177,16 @@ def update_query(user_id: int, convo_id: int, qa_pair: schemas.QAPair):
     """Refresh a QAPair by replacing the query, which, if successful will
     also fetch a new response from the LLM API and replace the old one.
     :return: Type[schemas.QAPair]"""
-    if not data_manager.retrieve_user(user_id):
-        raise HTTPException(status_code=404, detail="User not found")
-    if not data_manager.load_convo(user_id, convo_id):
-        raise HTTPException(status_code=404, detail="Convo not found")
+    # TODO
+    try:
+        if not data_manager.retrieve_user(user_id):
+            raise HTTPException(status_code=404, detail="User not found")
+        convo = data_manager.load_convo(convo_id)
+        if not convo or convo.user_id != user_id:
+            raise HTTPException(status_code=404, detail="Convo not found")
+
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # @app.post("/recipes", status_code=status.HTTP_201_CREATED)

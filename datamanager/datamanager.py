@@ -41,7 +41,6 @@ class SQLiteDataManager():
         # SQLAlchemy will now automatically generate a unique ID when commit()
         self.db_session.commit()
         self.db_session.refresh(new_user)  # new addition
-        print(f"User '{user.email}' added successfully!")
         return new_user
 
     def delete_user(self, user_id: int):
@@ -50,7 +49,6 @@ class SQLiteDataManager():
             id=user_id).first()
         self.db_session.delete(existing_user)
         self.db_session.commit()
-        print(f"User '{existing_user}' successfully deleted!")
 
     def retrieve_user(self, user_id: int) -> Optional[Type[User]]:
         """Return User if user_id present in 'users' table, else None"""
@@ -84,12 +82,18 @@ class SQLiteDataManager():
         self.db_session.refresh(new_convo)
         return new_convo
 
-    def load_convo(self, user_id: int, convo_id: int) -> Type[schemas.Convo]:
-        convo = self.db_session.query(Convo) \
-            .filter(and_(Convo.id == literal(convo_id),
-                         Convo.user_id == literal(user_id))) \
-            .first()
+    def load_convo(self, convo_id: int) -> Type[schemas.Convo]:
+        """Fetch single Convo object from the database."""
+        convo = self.db_session.query(Convo).filter_by(
+            id=convo_id).first()
         return convo
+
+    def delete_convo(self, convo_id: int):
+        """Remove a convo from the database"""
+        existing_convo = self.db_session.query(Convo).filter_by(
+            id=convo_id).first()
+        self.db_session.delete(existing_convo)
+        self.db_session.commit()
 
     def init_qa_pair(self, convo_id: int, query: str):
         """
@@ -104,25 +108,25 @@ class SQLiteDataManager():
         self.db_session.refresh(new_qa)
         return new_qa
 
-    def finalise_qa_pair(self, qa_pair: schemas.QAPair, response: str):
-        """Store the LMM response"""
-        self.db_session.query(QAPair).filter_by(id=qa_pair.id).update(
-            {'response': response}
-        )
+    def update_qa_pair(self, qa_pair: schemas.QAPair):
+        """Update QAPair. Sometimes the .response will be a string, sometimes
+        None."""
+        self.db_session.query(QAPair).filter_by(id=qa_pair.id).update({
+            'response': qa_pair.response,
+            'query': qa_pair.query,
+            'timestamp': qa_pair.timestamp
+        })
         self.db_session.commit()
-        qa_pair.response = response
-        return qa_pair
+        self.db_session.refresh(qa_pair)  # do I dare? Ain't an SQLAlch object
 
-    def update_qa_pair(self, qa_pair_id: int, response: str):
-        """
-        Finalise or update the qa_pair by storing the response @ the id
-        """
-        self.db_session.query(QAPair).filter(QAPair.id == qa_pair_id).update(
-            {'response': response}
-        )
+    def delete_qa_pair(self, qa_pair_id: int):
+        """Delete QAPair."""
+        existing_qa_pair = self.db_session.query(QAPair).filter_by(
+            id=qa_pair_id).first()
+        self.db_session.delete(existing_qa_pair)
         self.db_session.commit()
 
-    def load_qa_pairs(self, convo_id: int):
+    def get_qa_pairs(self, convo_id: int):
         qa_pairs = self.db_session.query(QAPair) \
             .filter(QAPair.convo_id == literal(convo_id)).all()
         return qa_pairs

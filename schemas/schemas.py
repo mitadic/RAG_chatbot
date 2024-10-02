@@ -53,6 +53,9 @@ class QAPairCreate(BaseModel):
 	"""Don't need convo_id here, by virtue of having it in the URL"""
 	query: str
 
+	class Config:
+		extra = "forbid"  # makes FastAPI reject unsolicited payload extras
+
 
 class QAPair(QAPairCreate):
 	"""
