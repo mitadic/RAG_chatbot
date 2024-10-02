@@ -139,13 +139,15 @@ def delete_user(user_id: int):
 
 
 @app.get("/users/{user_id}/convos")
-def user_homepage(user_id: int):
+def user_homepage(
+        user: Annotated[schemas.User, Depends(auth.get_current_active_user)]
+):
     """Fetch List of Convo objects which belong to this user"""
     try:
-        if not data_manager.retrieve_user(user_id):
-            raise HTTPException(status_code=404, detail="Bad user ID")
-        user_convos = data_manager.get_convos(user_id)
-        print(f"Success fetching Convos for user with id <{user_id}>")
+        # if not data_manager.retrieve_user(user_id):
+        #     raise HTTPException(status_code=404, detail="Bad user ID")
+        user_convos = data_manager.get_convos(user.id)
+        print(f"Success fetching Convos for user with id <{user.id}>")
         return user_convos
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
