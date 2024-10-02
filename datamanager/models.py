@@ -44,3 +44,14 @@ class QAPair(Base):
     query = Column(String, nullable=False)
     response = Column(String, nullable=True)
     timestamp = Column(DateTime, nullable=False)
+
+
+# class Token(Base):
+#     """
+#     Token as a string, relates to a user_id.
+#     """
+#     __tablename__ = 'tokens'
+#     id = Column(Integer, primary_key=True, autoincrement=True)
+#     token = Column(String, unique=True)
+#     user_id = Column(Integer, ForeignKey('users.id'))
+#     expires_at = Column(DateTime, nullable=True)

@@ -26,7 +26,7 @@ Session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base.metadata.create_all(engine)
 
 
-class SQLiteDataManager():
+class SQLiteDataManager:
     def __init__(self):
         self.db_session = Session()  # Create a session instance
 
@@ -56,14 +56,12 @@ class SQLiteDataManager():
             id=user_id).first()
         return existing_user  # will be None if not found
 
-    def is_available_email(self, email: str) -> bool:
-        """Return True if email (case-insensitive) not taken."""
+    def retrieve_user_by_email(self, email: str) -> Optional[Type[User]]:
+        """Return User object if email found, else None"""
         # .first() ensures that None is returned for no match, unlike .all()
         existing_user = self.db_session.query(User).filter_by(
             email=email).first()
-        if existing_user:
-            return False
-        return True
+        return existing_user
 
     def get_convos(self, user_id: int) -> List[Type[Convo]]:
         """

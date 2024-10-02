@@ -7,23 +7,51 @@ Gemini 1.5 API for generating responses.
 
 import logging
 import uvicorn
-from fastapi import FastAPI, HTTPException, status
+from typing import Annotated
+from datetime import timedelta
+from fastapi import FastAPI, HTTPException, status, Depends
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.exc import SQLAlchemyError
 import schemas.schemas as schemas
+import utils.authentication as auth
 from datamanager.datamanager import SQLiteDataManager
 from utils.response_fetcher import fetch_llm_response
 
 logging.basicConfig(level=logging.INFO)
+logging.getLogger("passlib.handlers.bcrypt").setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
 
 data_manager = SQLiteDataManager()
+
 app = FastAPI()
+
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 
 @app.post("/login")
-def login(username: str, pw: str):
+async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
     """Attempt login."""
-    pass
+    # authenticate sheer email+pw match
+    user = data_manager.retrieve_user_by_email(form_data.username)
+    if not user:
+        raise HTTPException(status_code=400, detail="No user with that email",
+                            headers={"WWW-Authenticate": "Bearer"})
+    if not auth.verify_password(form_data.password, user.pw):
+        raise HTTPException(status_code=400, detail="Incorrect password",
+                            headers={"WWW-Authenticate": "Bearer"})
+
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = auth.create_access_token(
+        data={"sub": user.email}, expires_delta=access_token_expires
+    )
+    return schemas.Token(access_token=access_token, token_type="bearer")
+
+
+@app.get("/users/me", response_model=schemas.User)
+async def who_am_i(
+        user: Annotated[schemas.User, Depends(auth.get_current_active_user)]
+):
+    return user
 
 
 @app.get("/users/")
@@ -46,9 +74,12 @@ def create_user(user: schemas.UserCreate):
         obsolete attribute: response_model=schemas.User
     """
     try:
-        if not data_manager.is_available_email(user.email):
+        if data_manager.retrieve_user_by_email(user.email) is not None:
             raise HTTPException(status_code=400,
                                 detail="Email already registered")
+
+        # hash the pw before storing it in the DB
+        user.pw = auth.get_password_hash(user.pw)
         new_user = data_manager.create_user(user=user)
         print(f"User '{user.email}' added successfully!")
         return {"email": new_user.email, "id": str(new_user.id)}
@@ -59,8 +90,8 @@ def create_user(user: schemas.UserCreate):
 @app.delete("/users/{user_id}")
 def delete_user(user_id: int):
     """Delete a user by their id.
-    Args: user_id: int
-    Raises: HTTPException: If the recipe with the specified ID is not found.
+    :Args: user_id: int
+    :Raises: HTTPException: If the recipe with the specified ID is not found.
     Returns: dict: A status message indicating successful deletion and user_id.
     """
     try:
@@ -81,6 +112,30 @@ def delete_user(user_id: int):
         return {f"User '{user.email}' successfully deleted"}
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# @app.put("/users/{user_id}/change_password")
+# def change_password(user_id: int):
+#     """Update user's password, authorized as user"""
+#     try:
+#         user = data_manager.retrieve_user(user_id)
+#         if not user:
+#             raise HTTPException(status_code=404, detail="User not found")
+#
+#         user_convos = data_manager.get_convos(user_id)
+#         for convo in user_convos:
+#             qa_pairs = data_manager.get_qa_pairs(convo.id)
+#             for qa_pair in qa_pairs:
+#                 data_manager.delete_qa_pair(qa_pair.id)
+#                 print(
+#                     f"QAPair with id <{qa_pair.id}> successfully deleted")
+#             data_manager.delete_convo(convo.id)
+#             print(f"Convo '{convo.title}' deleted for user '{user.email}'")
+#         data_manager.delete_user(user_id)
+#         print(f"User '{user.email}' successfully deleted")
+#         return {f"User '{user.email}' successfully deleted"}
+#     except SQLAlchemyError as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/users/{user_id}/convos")

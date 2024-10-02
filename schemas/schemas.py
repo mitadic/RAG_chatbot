@@ -20,7 +20,7 @@ class User(UserCreate):
 	id: int
 
 	class Config:
-		orm_mode = True
+		from_attributes = True  # 'orm_mode' has since been renamed to this
 
 
 class ConvoCreate(BaseModel):
@@ -59,7 +59,7 @@ class QAPairCreate(BaseModel):
 
 class QAPair(QAPairCreate):
 	"""
-	Trying out: simplest single-step Model definition
+	The rest of the QAPair - the full picture.
 	"""
 	id: int
 	convo_id: int
@@ -68,3 +68,12 @@ class QAPair(QAPairCreate):
 
 	class Config:
 		from_attributes = True  # 'orm_mode' has since been renamed to this
+
+
+class Token(BaseModel):
+	access_token: str
+	token_type: str
+
+
+class TokenData(BaseModel):
+	username: str | None

@@ -1,10 +1,13 @@
 pydantic
 sqlalchemy
 fastapi
+python-multipart  # FYI also included when you install <fastapi[standard]>
 uvicorn
 python-dotenv
 google-api-python-client
 google
 google-generativeai
+pyjwt
+passlib[bcrypt]
 # google-cloud
 # google-cloud-vision
