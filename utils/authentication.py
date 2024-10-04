@@ -11,7 +11,7 @@ from datamanager.datamanager import SQLiteDataManager
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 SECRET_KEY = "476304cf47812d40cad469ebb13701c441325cb0c6fe6d5358df867218055788"
 ALGORITHM = "HS256"
@@ -37,6 +37,12 @@ def create_access_token(data: dict, expires_delta: timedelta | None):
 
 
 async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
+    """
+    Depends(oauth2_scheme) is crucial.
+    It is what protects a route (all the way up the dependency chain, through
+    to the endpoint in app.py) which makes FastAPI expect an:
+    Authorization header with a Bearer token.
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",

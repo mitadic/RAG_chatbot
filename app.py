@@ -28,9 +28,14 @@ app = FastAPI()
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 
-@app.post("/login")
-async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
-    """Attempt login."""
+@app.post("/token")
+async def token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
+    """
+    Over in authentication.py, OAuth2PasswordBearer() specifies tokenUrl=.
+    What it specifies is the name of this here endpoint. So even though
+    logging in via payload on this endpoint won't authenticate the Swagger
+    session, it is still utilized indirectly when the lock symbol is clicked.
+    """
     # authenticate sheer email+pw match
     user = data_manager.retrieve_user_by_email(form_data.username)
     if not user:
