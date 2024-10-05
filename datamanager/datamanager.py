@@ -43,18 +43,18 @@ class SQLiteDataManager:
         self.db_session.refresh(new_user)  # new addition
         return new_user
 
-    def delete_user(self, user_id: int):
-        """Remove a user from the database"""
-        existing_user = self.db_session.query(User).filter_by(
-            id=user_id).first()
-        self.db_session.delete(existing_user)
-        self.db_session.commit()
-
-    def retrieve_user(self, user_id: int) -> Optional[Type[User]]:
+    def get_user(self, user_id: int) -> Optional[Type[User]]:
         """Return User if user_id present in 'users' table, else None"""
         existing_user = self.db_session.query(User).filter_by(
             id=user_id).first()
         return existing_user  # will be None if not found
+
+    # TODO update user
+
+    def delete_user(self, user_id: int):
+        """Remove a user from the database"""
+        self.db_session.delete(self.get_user(user_id))
+        self.db_session.commit()
 
     def retrieve_user_by_email(self, email: str) -> Optional[Type[User]]:
         """Return User object if email found, else None"""
@@ -63,7 +63,7 @@ class SQLiteDataManager:
             email=email).first()
         return existing_user
 
-    def get_convos(self, user_id: int) -> List[Type[Convo]]:
+    def get_all_convos(self, user_id: int) -> List[Type[Convo]]:
         """
         Return a [] of Convo objects associated with user_id
         """
@@ -80,20 +80,25 @@ class SQLiteDataManager:
         self.db_session.refresh(new_convo)
         return new_convo
 
-    def load_convo(self, convo_id: int) -> Type[schemas.Convo]:
+    def get_convo(self, convo_id: int) -> Type[schemas.Convo]:
         """Fetch single Convo object from the database."""
         convo = self.db_session.query(Convo).filter_by(
             id=convo_id).first()
         return convo
 
+    # TODO update convo? (only the title obviously)
+
     def delete_convo(self, convo_id: int):
         """Remove a convo from the database"""
-        existing_convo = self.db_session.query(Convo).filter_by(
-            id=convo_id).first()
-        self.db_session.delete(existing_convo)
+        self.db_session.delete(self.get_convo(convo_id))
         self.db_session.commit()
 
-    def init_qa_pair(self, convo_id: int, query: str):
+    def get_all_qa_pairs(self, convo_id: int):
+        qa_pairs = self.db_session.query(QAPair) \
+            .filter(QAPair.convo_id == literal(convo_id)).all()
+        return qa_pairs
+
+    def create_qa_pair(self, convo_id: int, query: str):
         """
         Initialise a QA pair by storing just the query first.
         !!! (No, upd) Return: id of the initialised qa_pair after the commit
@@ -106,6 +111,14 @@ class SQLiteDataManager:
         self.db_session.refresh(new_qa)
         return new_qa
 
+    # TODO get qa_pair? fetching a single one doesn't seem necessary
+
+    def get_qa_pair(self, qa_pair_id: int):
+        """Fetch a single qa_pair, not used by the App, just by 'delete'."""
+        qa_pair = self.db_session.query(QAPair).filter_by(
+            id=qa_pair_id).first()
+        return qa_pair
+
     def update_qa_pair(self, qa_pair: schemas.QAPair):
         """Update QAPair. Sometimes the .response will be a string, sometimes
         None."""
@@ -115,105 +128,9 @@ class SQLiteDataManager:
             'timestamp': qa_pair.timestamp
         })
         self.db_session.commit()
-        self.db_session.refresh(qa_pair)  # do I dare? Ain't an SQLAlch object
+        self.db_session.refresh(qa_pair)  # do I dare? Ain't a SQLAlch object
 
     def delete_qa_pair(self, qa_pair_id: int):
         """Delete QAPair."""
-        existing_qa_pair = self.db_session.query(QAPair).filter_by(
-            id=qa_pair_id).first()
-        self.db_session.delete(existing_qa_pair)
+        self.db_session.delete(self.get_qa_pair(qa_pair_id))
         self.db_session.commit()
-
-    def get_qa_pairs(self, convo_id: int):
-        qa_pairs = self.db_session.query(QAPair) \
-            .filter(QAPair.convo_id == literal(convo_id)).all()
-        return qa_pairs
-
-#######################################
-
-    # def add_movie(self, name: str, director: str, year: int, rating: float,
-    #               poster: str) -> int:
-    #     """Add movie to DB, return the auto-incremented movie.id"""
-    #     new_movie = Movie(name=name, director=director, year=year,
-    #                       rating=rating, poster=poster)
-    #     self.db_session.add(new_movie)
-    #     self.db_session.commit()  # this is where new_movie.id gets created
-    #     print(f"Movie '{name}' added successfully!")
-    #     return cast(int, new_movie.id)  # redundant cast bc PyCharm typechecks
-    #
-    # def add_user_movie(self, user_id: int, movie_id: int):
-    #     """Add a new relation of a usr to a mov. The ids are sure to exist"""
-    #
-    #     # obtain 'movie' and 'user' names
-    #     movie_object = self.db_session.query(Movie) \
-    #         .filter(Movie.id == movie_id) \
-    #         .one()
-    #     movie = movie_object.name
-    #     user_object = self.db_session.query(User) \
-    #         .filter(User.id == user_id) \
-    #         .one()
-    #     user = user_object.name
-    #
-    #     # Verify that the relationship doesn't already exist in 'user_movies'
-    #     existing_relationship = self.db_session.query(UserMovie).filter_by(
-    #         user_id=user_id, movie_id=movie_id).first()
-    #     if existing_relationship:
-    #         print(f"User {user} already has the movie {movie}!")
-    #         return
-    #
-    #     # Add a new relationship entry to 'user_movies'
-    #     new_relationship = UserMovie(user_id=user_id, movie_id=movie_id)
-    #     self.db_session.add(new_relationship)
-    #     self.db_session.commit()
-    #     print(f"Movie {movie} successfully added for {user}!")
-    #
-    # def get_movie_from_id(self, movie_id) -> Movie:
-    #     """Query 'movies' table for movie_id match, return Movie object"""
-    #     mov = self.db_session.query(Movie).filter(Movie.id == movie_id).one()
-    #     # the redundant cast necessary to appease PyCharm's typechecker
-    #     return cast(Movie, mov)
-    #
-    # def get_username_from_id(self, user_id) -> String:
-    #     """Query 'users' table for user_id match, return username"""
-    #     user = self.db_session.query(User).filter(User.id == user_id).one()
-    #     # the redundant cast necessary to appease PyCharm's typechecker
-    #     return cast(String, user.name)
-    #
-    # @staticmethod
-    # def create_movie_object(movie_id: int, name: str, director: str, year: int,
-    #                         rating: float, poster: str) -> Movie:
-    #     """Bundle parameters into a Movie object"""
-    #     movie = Movie(id=movie_id, name=name, director=director, year=year,
-    #                   rating=rating, poster=poster)
-    #     return movie
-    #
-    # def update_movie(self, movie: Movie):
-    #     self.db_session.query(Movie).filter(Movie.id == movie.id).update(
-    #         {'name': movie.name,
-    #          'director': movie.director,
-    #          'year': movie.year,
-    #          'rating': movie.rating,
-    #          'poster': movie.poster}
-    #     )
-    #     self.db_session.commit()
-    #
-    # def delete_movie(self, user_id: int, movie_id: int):
-    #     """Remove the user-movie relationship entry, remove movie entry"""
-    #     relationship_to_del = self.db_session.query(UserMovie). \
-    #         filter(UserMovie.user_id == user_id,
-    #                UserMovie.movie_id == movie_id).one()
-    #     movie_to_del = self.db_session.query(Movie) \
-    #         .filter(Movie.id == literal(movie_id)).one()
-    #     self.db_session.delete(relationship_to_del)
-    #     self.db_session.delete(movie_to_del)
-    #     self.db_session.commit()
-    #     print(f"Movie with id <{movie_id}> successfully deleted.")
-    #
-    # def delete_user(self, user_id: int):
-    #     """Remove user. app ensures that all related movie entries are
-    #     deleted first."""
-    #     user_to_del = self.db_session.query(User) \
-    #         .filter(User.id == literal(user_id)).one()
-    #     self.db_session.delete(user_to_del)
-    #     self.db_session.commit()
-    #     print(f"User with id <{user_id}> successfully deleted.")

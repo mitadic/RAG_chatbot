@@ -10,7 +10,7 @@ import uvicorn
 from typing import Annotated
 from datetime import timedelta
 from fastapi import FastAPI, HTTPException, status, Depends
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.exc import SQLAlchemyError
 import schemas.schemas as schemas
 import utils.authentication as auth
@@ -95,13 +95,13 @@ def delete_user(
     Returns: dict: A status message indicating successful deletion and user_id.
     """
     try:
-        user = data_manager.retrieve_user(user.id)
+        user = data_manager.get_user(user.id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        user_convos = data_manager.get_convos(user.id)
+        user_convos = data_manager.get_all_convos(user.id)
         for convo in user_convos:
-            qa_pairs = data_manager.get_qa_pairs(convo.id)
+            qa_pairs = data_manager.get_all_qa_pairs(convo.id)
             for qa_pair in qa_pairs:
                 data_manager.delete_qa_pair(qa_pair.id)
                 print(f"QAPair with id <{qa_pair.id}> successfully deleted")
@@ -153,7 +153,7 @@ def load_convos(
     try:
         # if not data_manager.retrieve_user(user_id):
         #     raise HTTPException(status_code=404, detail="Bad user ID")
-        user_convos = data_manager.get_convos(user.id)
+        user_convos = data_manager.get_all_convos(user.id)
         print(f"Success fetching Convos for user with id <{user.id}>")
         return user_convos
     except SQLAlchemyError as e:
@@ -167,7 +167,7 @@ def create_convo(
 ):
     """Enforce title creation to start a Convo"""
     try:
-        if not data_manager.retrieve_user(user.id):
+        if not data_manager.get_user(user.id):
             raise HTTPException(status_code=404, detail="Bad user ID")
         convo = data_manager.create_convo(user.id, convo)
         print(f"New Convo created for user_id <{user.id}>: '{convo.title}'")
@@ -185,13 +185,13 @@ def load_convo(
         (1) Convo object which regards the user_id
         (2) The QAPair objects with the appropriate convo_id"""
     try:
-        if not data_manager.retrieve_user(user.id):
+        if not data_manager.get_user(user.id):
             raise HTTPException(status_code=404, detail="User not found")
-        convo = data_manager.load_convo(convo_id)
+        convo = data_manager.get_convo(convo_id)
         if not convo or convo.user_id != user.id:
             raise HTTPException(status_code=404, detail="Convo not found")
 
-        qa_pairs = data_manager.get_qa_pairs(convo_id)
+        qa_pairs = data_manager.get_all_qa_pairs(convo_id)
         # they seem sorted anyway, this is a temporary safeguard
         qa_pairs = sorted(qa_pairs, key=lambda x: x.id)
         return {"convo": convo, "qa_pairs": qa_pairs}
@@ -205,9 +205,9 @@ def delete_convo(
         convo_id: int
 ):
     try:
-        if not data_manager.retrieve_user(user.id):
+        if not data_manager.get_user(user.id):
             raise HTTPException(status_code=404, detail="User not found")
-        convo = data_manager.load_convo(convo_id)
+        convo = data_manager.get_convo(convo_id)
         if not convo or convo.user_id != user.id:
             raise HTTPException(status_code=404, detail="Convo not found")
 
@@ -230,13 +230,13 @@ def submit_query(
     also fetch a response from the LLM API and store it.
     :return: Type[schemas.QAPair]"""
     try:
-        if not data_manager.retrieve_user(user.id):
+        if not data_manager.get_user(user.id):
             raise HTTPException(status_code=404, detail="User not found")
-        convo = data_manager.load_convo(convo_id)
+        convo = data_manager.get_convo(convo_id)
         if not convo or convo.user_id != user.id:
             raise HTTPException(status_code=404, detail="Convo not found")
 
-        qa_pair = data_manager.init_qa_pair(convo_id, qa_init.query)
+        qa_pair = data_manager.create_qa_pair(convo_id, qa_init.query)
         # here: wrap query in context, truths, etc.
         response = fetch_llm_response(qa_pair.query)
         if not response:
@@ -256,11 +256,11 @@ def update_qa_pair(
     """Refresh a QAPair by replacing the query, which, if successful will
     also fetch a new response from the LLM API and replace the old one.
     :return: Type[schemas.QAPair]"""
-    # TODO add storing of new query and fetching of new response
+    # TODO add storing of new query, fetching of new response, del of following
     try:
-        if not data_manager.retrieve_user(user.id):
+        if not data_manager.get_user(user.id):
             raise HTTPException(status_code=404, detail="User not found")
-        convo = data_manager.load_convo(convo_id)
+        convo = data_manager.get_convo(convo_id)
         if not convo or convo.user_id != user.id:
             raise HTTPException(status_code=404, detail="Convo not found")
 
@@ -274,7 +274,7 @@ def delete_qa_pair(
         convo_id: int, qa_pair: schemas.QAPair
 ):
     """"""
-    # TODO add storing of new query and fetching of new response
+    # TODO add storing of new query, fetching of new response, del of following
 
 
 # @app.post("/recipes", status_code=status.HTTP_201_CREATED)
