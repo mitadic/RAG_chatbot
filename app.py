@@ -52,14 +52,7 @@ async def token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
     return schemas.Token(access_token=access_token, token_type="bearer")
 
 
-@app.get("/users/me", response_model=schemas.User)
-async def who_am_i(
-        user: Annotated[schemas.User, Depends(auth.get_current_active_user)]
-):
-    return user
-
-
-@app.get("/users/")
+@app.get("/users")
 def list_users():
     """:return: List[Type[schemas.User]]"""
     try:
@@ -68,7 +61,7 @@ def list_users():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/users/")
+@app.post("/users")
 def create_user(user: schemas.UserCreate):
     """
     schemas.UserCreate should confirm that "email" and "pw" are in payload
@@ -92,19 +85,21 @@ def create_user(user: schemas.UserCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/users/{user_id}")
-def delete_user(user_id: int):
+@app.delete("/users")
+def delete_user(
+        user: Annotated[schemas.User, Depends(auth.get_current_active_user)]
+):
     """Delete a user by their id.
     :Args: user_id: int
     :Raises: HTTPException: If the recipe with the specified ID is not found.
     Returns: dict: A status message indicating successful deletion and user_id.
     """
     try:
-        user = data_manager.retrieve_user(user_id)
+        user = data_manager.retrieve_user(user.id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        user_convos = data_manager.get_convos(user_id)
+        user_convos = data_manager.get_convos(user.id)
         for convo in user_convos:
             qa_pairs = data_manager.get_qa_pairs(convo.id)
             for qa_pair in qa_pairs:
@@ -112,11 +107,18 @@ def delete_user(user_id: int):
                 print(f"QAPair with id <{qa_pair.id}> successfully deleted")
             data_manager.delete_convo(convo.id)
             print(f"Convo '{convo.title}' deleted for user '{user.email}'")
-        data_manager.delete_user(user_id)
+        data_manager.delete_user(user.id)
         print(f"User '{user.email}' successfully deleted")
         return {f"User '{user.email}' successfully deleted"}
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/users/me", response_model=schemas.User)
+async def who_am_i(
+        user: Annotated[schemas.User, Depends(auth.get_current_active_user)]
+):
+    return user
 
 
 # @app.put("/users/{user_id}/change_password")
@@ -143,8 +145,8 @@ def delete_user(user_id: int):
 #         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/users/{user_id}/convos")
-def user_homepage(
+@app.get("/dashboard")
+def load_convos(
         user: Annotated[schemas.User, Depends(auth.get_current_active_user)]
 ):
     """Fetch List of Convo objects which belong to this user"""
@@ -158,45 +160,35 @@ def user_homepage(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/users/{user_id}/convos/", status_code=status.HTTP_201_CREATED)
-def create_convo(user_id: int, convo: schemas.ConvoCreate):
+@app.post("/dashboard", status_code=status.HTTP_201_CREATED)
+def create_convo(
+        convo: schemas.ConvoCreate,
+        user: Annotated[schemas.User, Depends(auth.get_current_active_user)]
+):
     """Enforce title creation to start a Convo"""
     try:
-        if not data_manager.retrieve_user(user_id):
+        if not data_manager.retrieve_user(user.id):
             raise HTTPException(status_code=404, detail="Bad user ID")
-        convo = data_manager.create_convo(user_id, convo)
-        print(f"New Convo created for user_id <{user_id}>: '{convo.title}'")
+        convo = data_manager.create_convo(user.id, convo)
+        print(f"New Convo created for user_id <{user.id}>: '{convo.title}'")
         return convo
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/users/{user_id}/convos/{convo_id}")
-def delete_convo(user_id: int, convo_id: int):
-    try:
-        if not data_manager.retrieve_user(user_id):
-            raise HTTPException(status_code=404, detail="User not found")
-        convo = data_manager.load_convo(convo_id)
-        if not convo or convo.user_id != user_id:
-            raise HTTPException(status_code=404, detail="Convo not found")
-
-        data_manager.delete_convo(convo_id)
-        print(f"Conversation '{convo.title}' deleted for user_id {user_id}")
-        return {f"Conversation '{convo.title}' deleted successfully"}
-    except SQLAlchemyError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/users/{user_id}/convos/{convo_id}")
-def load_convo(user_id: int, convo_id: int):
+@app.get("/dashboard/convo/{convo_id}")
+def load_convo(
+        user: Annotated[schemas.User, Depends(auth.get_current_active_user)],
+        convo_id: int
+):
     """Retrieve the conversation as a composite of:
         (1) Convo object which regards the user_id
         (2) The QAPair objects with the appropriate convo_id"""
     try:
-        if not data_manager.retrieve_user(user_id):
+        if not data_manager.retrieve_user(user.id):
             raise HTTPException(status_code=404, detail="User not found")
         convo = data_manager.load_convo(convo_id)
-        if not convo or convo.user_id != user_id:
+        if not convo or convo.user_id != user.id:
             raise HTTPException(status_code=404, detail="Convo not found")
 
         qa_pairs = data_manager.get_qa_pairs(convo_id)
@@ -207,19 +199,41 @@ def load_convo(user_id: int, convo_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.delete("/dashboard/convo/{convo_id}")
+def delete_convo(
+        user: Annotated[schemas.User, Depends(auth.get_current_active_user)],
+        convo_id: int
+):
+    try:
+        if not data_manager.retrieve_user(user.id):
+            raise HTTPException(status_code=404, detail="User not found")
+        convo = data_manager.load_convo(convo_id)
+        if not convo or convo.user_id != user.id:
+            raise HTTPException(status_code=404, detail="Convo not found")
+
+        data_manager.delete_convo(convo_id)
+        print(f"Conversation '{convo.title}' deleted for user_id {user.id}")
+        return {f"Conversation '{convo.title}' deleted successfully"}
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post(
-    "/users/{user_id}/convos/{convo_id}",
+    "/dashboard/convo/{convo_id}",
     status_code=status.HTTP_201_CREATED
 )
-def submit_query(user_id: int, convo_id: int, qa_init: schemas.QAPairCreate):
+def submit_query(
+        user: Annotated[schemas.User, Depends(auth.get_current_active_user)],
+        convo_id: int, qa_init: schemas.QAPairCreate
+):
     """Initiate a QAPair by submitting a query, which, if successful will
     also fetch a response from the LLM API and store it.
     :return: Type[schemas.QAPair]"""
     try:
-        if not data_manager.retrieve_user(user_id):
+        if not data_manager.retrieve_user(user.id):
             raise HTTPException(status_code=404, detail="User not found")
         convo = data_manager.load_convo(convo_id)
-        if not convo or convo.user_id != user_id:
+        if not convo or convo.user_id != user.id:
             raise HTTPException(status_code=404, detail="Convo not found")
 
         qa_pair = data_manager.init_qa_pair(convo_id, qa_init.query)
@@ -234,21 +248,33 @@ def submit_query(user_id: int, convo_id: int, qa_init: schemas.QAPairCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.put("/users/{user_id}/convos/{convo_id}")
-def update_query(user_id: int, convo_id: int, qa_pair: schemas.QAPair):
+@app.put("/dashboard/convo/{convo_id}/query")
+def update_qa_pair(
+        user: Annotated[schemas.User, Depends(auth.get_current_active_user)],
+        convo_id: int, qa_pair: schemas.QAPair
+):
     """Refresh a QAPair by replacing the query, which, if successful will
     also fetch a new response from the LLM API and replace the old one.
     :return: Type[schemas.QAPair]"""
-    # TODO
+    # TODO add storing of new query and fetching of new response
     try:
-        if not data_manager.retrieve_user(user_id):
+        if not data_manager.retrieve_user(user.id):
             raise HTTPException(status_code=404, detail="User not found")
         convo = data_manager.load_convo(convo_id)
-        if not convo or convo.user_id != user_id:
+        if not convo or convo.user_id != user.id:
             raise HTTPException(status_code=404, detail="Convo not found")
 
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/dashboard/convo/{convo_id}/query")
+def delete_qa_pair(
+        user: Annotated[schemas.User, Depends(auth.get_current_active_user)],
+        convo_id: int, qa_pair: schemas.QAPair
+):
+    """"""
+    # TODO add storing of new query and fetching of new response
 
 
 # @app.post("/recipes", status_code=status.HTTP_201_CREATED)
