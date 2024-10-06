@@ -13,7 +13,7 @@ class User(Base):
     __tablename__ = 'users'
     # The id assignment will automatically be done by SQLAlchemy when commit()
     id = Column(Integer, primary_key=True, autoincrement=True)
-    email = Column(String(80), unique=True, nullable=False)
+    name = Column(String(80), unique=True, nullable=False)
     pw = Column(String(80), unique=False, nullable=False)
 
 

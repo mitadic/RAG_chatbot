@@ -1,8 +1,8 @@
 """
 RAG Chatbot Application.
 This module provides endpoints for CRUD operations on DA.
-It uses SQLite + SQLAlchemy.orm for storage, FastAPI for the server, and
-Gemini 1.5 API for generating responses.
+It uses SQLite + SQLAlchemy.orm for storage, FastAPI for the server, OAuth2
+with JWT Tokens for authentication, Gemini 1.5 API for generating responses.
 """
 
 import logging
@@ -11,6 +11,7 @@ from typing import Annotated
 from datetime import timedelta
 from fastapi import FastAPI, HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordRequestForm
+# from fastapi.responses import RedirectResponse  # no Frontend ==> no Redir
 from sqlalchemy.exc import SQLAlchemyError
 import schemas.schemas as schemas
 import utils.authentication as auth
@@ -36,18 +37,19 @@ async def token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
     logging in via payload on this endpoint won't authenticate the Swagger
     session, it is still utilized indirectly when the lock symbol is clicked.
     """
-    # authenticate sheer email+pw match
-    user = data_manager.retrieve_user_by_email(form_data.username)
+    # authenticate sheer name+pw match: obsolete since using OAuth2?
+    user = data_manager.retrieve_user_by_name(form_data.username)
     if not user:
-        raise HTTPException(status_code=400, detail="No user with that email",
+        raise HTTPException(status_code=400, detail="No user with that name",
                             headers={"WWW-Authenticate": "Bearer"})
     if not auth.verify_password(form_data.password, user.pw):
         raise HTTPException(status_code=400, detail="Incorrect password",
                             headers={"WWW-Authenticate": "Bearer"})
 
+    # create Token
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = auth.create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
+        data={"sub": user.name}, expires_delta=access_token_expires
     )
     return schemas.Token(access_token=access_token, token_type="bearer")
 
@@ -64,7 +66,7 @@ def list_users():
 @app.post("/users")
 def create_user(user: schemas.UserCreate):
     """
-    schemas.UserCreate should confirm that "email" and "pw" are in payload
+    schemas.UserCreate should confirm that "name" and "pw" are in payload
         else, it will raise error 422
     schemas.User should confirm that "id" is part of the Response Model
         else, error 422?
@@ -72,15 +74,15 @@ def create_user(user: schemas.UserCreate):
         obsolete attribute: response_model=schemas.User
     """
     try:
-        if data_manager.retrieve_user_by_email(user.email) is not None:
-            raise HTTPException(status_code=400,
-                                detail="Email already registered")
+        # these functions raise HTTPExceptions
+        auth.validate_user_name(user.name)
+        auth.validate_pw(user.pw)
 
         # hash the pw before storing it in the DB
         user.pw = auth.get_password_hash(user.pw)
         new_user = data_manager.create_user(user=user)
-        print(f"User '{user.email}' added successfully!")
-        return {"email": new_user.email, "id": str(new_user.id)}
+        print(f"User '{user.name}' added successfully!")
+        return {"name": new_user.name, "id": str(new_user.id)}
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -95,9 +97,10 @@ def delete_user(
     Returns: dict: A status message indicating successful deletion and user_id.
     """
     try:
-        user = data_manager.get_user(user.id)
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+        # OBSOLETE due to authentication Depends()
+        # user = data_manager.get_user(user.id)
+        # if not user:
+        #     raise HTTPException(status_code=404, detail="User not found")
 
         user_convos = data_manager.get_all_convos(user.id)
         for convo in user_convos:
@@ -106,10 +109,10 @@ def delete_user(
                 data_manager.delete_qa_pair(qa_pair.id)
                 print(f"QAPair with id <{qa_pair.id}> successfully deleted")
             data_manager.delete_convo(convo.id)
-            print(f"Convo '{convo.title}' deleted for user '{user.email}'")
+            print(f"Convo '{convo.title}' deleted for user '{user.name}'")
         data_manager.delete_user(user.id)
-        print(f"User '{user.email}' successfully deleted")
-        return {f"User '{user.email}' successfully deleted"}
+        print(f"User '{user.name}' successfully deleted")
+        return {f"User '{user.name}' successfully deleted"}
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -121,28 +124,50 @@ async def who_am_i(
     return user
 
 
-# @app.put("/users/{user_id}/change_password")
-# def change_password(user_id: int):
-#     """Update user's password, authorized as user"""
-#     try:
-#         user = data_manager.retrieve_user(user_id)
-#         if not user:
-#             raise HTTPException(status_code=404, detail="User not found")
-#
-#         user_convos = data_manager.get_convos(user_id)
-#         for convo in user_convos:
-#             qa_pairs = data_manager.get_qa_pairs(convo.id)
-#             for qa_pair in qa_pairs:
-#                 data_manager.delete_qa_pair(qa_pair.id)
-#                 print(
-#                     f"QAPair with id <{qa_pair.id}> successfully deleted")
-#             data_manager.delete_convo(convo.id)
-#             print(f"Convo '{convo.title}' deleted for user '{user.email}'")
-#         data_manager.delete_user(user_id)
-#         print(f"User '{user.email}' successfully deleted")
-#         return {f"User '{user.email}' successfully deleted"}
-#     except SQLAlchemyError as e:
-#         raise HTTPException(status_code=500, detail=str(e))
+@app.put("/users/me/change_password")
+def change_password(
+        new_pw: str,
+        user: Annotated[schemas.User, Depends(auth.get_current_active_user)]
+):
+    """Update user's password, authorized as user"""
+    try:
+        auth.validate_pw(new_pw)  # will raise HTTPException
+        user.pw = auth.get_password_hash(new_pw)
+        data_manager.update_user(user)
+
+        # create new Token since pw of current authentication changed
+        # Unnecessary, because Swagger UI doesn't work that way
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = auth.create_access_token(
+            data={"sub": user.name}, expires_delta=access_token_expires
+        )
+        return {"msg": "Password successfully updated.",
+                "access_token": access_token}
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/users/me/change_name")
+def change_username(
+        new_name: str,
+        user: Annotated[schemas.User, Depends(auth.get_current_active_user)]
+):
+    """Update user's password, authorized as user"""
+    try:
+        auth.validate_user_name(new_name)  # will raise HTTPException
+        user.name = new_name
+        data_manager.update_user(user)
+
+        # create new Token since username of current authentication changed
+        # Unnecessary, because Swagger UI doesn't work that way
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = auth.create_access_token(
+            data={"sub": user.name}, expires_delta=access_token_expires
+        )
+        return {"msg": "Username successfully updated.",
+                "access_token": access_token}
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/dashboard")

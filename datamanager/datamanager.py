@@ -36,7 +36,7 @@ class SQLiteDataManager:
 
     def create_user(self, user: schemas.UserCreate):
         """Register a new user"""
-        new_user = User(email=user.email, pw=user.pw)
+        new_user = User(name=user.name, pw=user.pw)
         self.db_session.add(new_user)
         # SQLAlchemy will now automatically generate a unique ID when commit()
         self.db_session.commit()
@@ -50,17 +50,25 @@ class SQLiteDataManager:
         return existing_user  # will be None if not found
 
     # TODO update user
+    def update_user(self, user: schemas.User):
+        """Update user"""
+        self.db_session.query(User).filter_by(id=user.id).update({
+            'name': user.name,
+            'pw': user.pw
+        })
+        self.db_session.commit()
+        # self.db_session.refresh(user)  # No, this ain't a SQLAlchemy object
 
     def delete_user(self, user_id: int):
         """Remove a user from the database"""
         self.db_session.delete(self.get_user(user_id))
         self.db_session.commit()
 
-    def retrieve_user_by_email(self, email: str) -> Optional[Type[User]]:
-        """Return User object if email found, else None"""
+    def retrieve_user_by_name(self, name: str) -> Optional[Type[User]]:
+        """Return User object if name found, else None"""
         # .first() ensures that None is returned for no match, unlike .all()
         existing_user = self.db_session.query(User).filter_by(
-            email=email).first()
+            name=name).first()
         return existing_user
 
     def get_all_convos(self, user_id: int) -> List[Type[Convo]]:
@@ -128,7 +136,7 @@ class SQLiteDataManager:
             'timestamp': qa_pair.timestamp
         })
         self.db_session.commit()
-        self.db_session.refresh(qa_pair)  # do I dare? Ain't a SQLAlch object
+        # self.db_session.refresh(qa_pair)  # do I dare? Ain't a SQLAlch obj
 
     def delete_qa_pair(self, qa_pair_id: int):
         """Delete QAPair."""

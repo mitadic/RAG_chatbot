@@ -17,6 +17,23 @@ SECRET_KEY = "476304cf47812d40cad469ebb13701c441325cb0c6fe6d5358df867218055788"
 ALGORITHM = "HS256"
 
 
+def validate_user_name(name: str):
+    """Raise exception if name not matching here defined criteria"""
+    if len(name) < 6:
+        raise HTTPException(status_code=400,
+                            detail="name too short, min length 6 characters")
+    if SQLiteDataManager().retrieve_user_by_name(name) is not None:
+        raise HTTPException(status_code=400,
+                            detail="Name already registered")
+
+
+def validate_pw(password: str):
+    """Raise exception if password not matching here defined criteria"""
+    if len(password) < 6:
+        raise HTTPException(status_code=400,
+                            detail="pw too short, min length 6 characters")
+
+
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
@@ -56,7 +73,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
         token_data = schemas.TokenData(username=username)
     except InvalidTokenError:
         raise credentials_exception
-    user = SQLiteDataManager().retrieve_user_by_email(token_data.username)
+    user = SQLiteDataManager().retrieve_user_by_name(token_data.username)
     if user is None:
         raise credentials_exception
     return user

@@ -3,12 +3,12 @@ from datetime import datetime
 
 
 class UserBase(BaseModel):
-	"""We use this model when assigning the email to user."""
-	email: str
+	"""We use this model when assigning the name to user."""
+	name: str
 
 
 class UserCreate(UserBase):
-	"""UserCreate is sure to already have the email through inheritance."""
+	"""UserCreate is sure to already have the name through inheritance."""
 	pw: str
 
 	class Config:
@@ -16,7 +16,7 @@ class UserCreate(UserBase):
 
 
 class User(UserCreate):
-	"""User is sure to already have email and password through inheritance."""
+	"""User is sure to already have name and password through inheritance."""
 	id: int
 
 	class Config:
