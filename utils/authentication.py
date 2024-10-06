@@ -17,6 +17,16 @@ SECRET_KEY = "476304cf47812d40cad469ebb13701c441325cb0c6fe6d5358df867218055788"
 ALGORITHM = "HS256"
 
 
+def validate_users_rights_to_convo(user_id: int, convo_id: int):
+    """Raise exception if non-existent convo_id or the user_id of the
+    authenticated User isn't matching the foreign user_id in Convo"""
+    convo = SQLiteDataManager().get_convo(convo_id)
+    if not convo:
+        raise HTTPException(status_code=404, detail="Convo not found")
+    if convo.user_id != user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
 def validate_user_name(name: str):
     """Raise exception if name not matching here defined criteria"""
     if len(name) < 6:

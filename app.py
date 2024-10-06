@@ -144,7 +144,7 @@ def change_username(
         new_name: str,
         user: Annotated[schemas.User, Depends(auth.get_current_active_user)]
 ):
-    """Update user's password, authorized as user"""
+    """Update username, authorized as user"""
     try:
         auth.validate_user_name(new_name)  # will raise HTTPException
         user.name = new_name
@@ -160,8 +160,6 @@ def load_convos(
 ):
     """Fetch List of Convo objects which belong to this user"""
     try:
-        # if not data_manager.retrieve_user(user_id):
-        #     raise HTTPException(status_code=404, detail="Bad user ID")
         user_convos = data_manager.get_all_convos(user.id)
         print(f"Success fetching Convos for user with id <{user.id}>")
         return user_convos
@@ -176,8 +174,6 @@ def create_convo(
 ):
     """Enforce title creation to start a Convo"""
     try:
-        if not data_manager.get_user(user.id):
-            raise HTTPException(status_code=404, detail="Bad user ID")
         convo = data_manager.create_convo(user.id, convo)
         print(f"New Convo created for user_id <{user.id}>: '{convo.title}'")
         return convo
@@ -194,11 +190,8 @@ def load_convo(
         (1) Convo object which regards the user_id
         (2) The QAPair objects with the appropriate convo_id"""
     try:
-        if not data_manager.get_user(user.id):
-            raise HTTPException(status_code=404, detail="User not found")
         convo = data_manager.get_convo(convo_id)
-        if not convo or convo.user_id != user.id:
-            raise HTTPException(status_code=404, detail="Convo not found")
+        auth.validate_users_rights_to_convo(user.id, convo_id)  # will raise E
 
         qa_pairs = data_manager.get_all_qa_pairs(convo_id)
         # they seem sorted anyway, this is a temporary safeguard
@@ -213,15 +206,18 @@ def delete_convo(
         user: Annotated[schemas.User, Depends(auth.get_current_active_user)],
         convo_id: int
 ):
+    """Delete related QAPairs, then the Convo itself."""
     try:
-        if not data_manager.get_user(user.id):
-            raise HTTPException(status_code=404, detail="User not found")
         convo = data_manager.get_convo(convo_id)
-        if not convo or convo.user_id != user.id:
-            raise HTTPException(status_code=404, detail="Convo not found")
+        auth.validate_users_rights_to_convo(user.id, convo_id)  # will raise E
 
+        qa_pairs = data_manager.get_all_qa_pairs(convo.id)
+        for qa_pair in qa_pairs:
+            data_manager.delete_qa_pair(qa_pair.id)
+            print(f"QAPair with id <{qa_pair.id}> successfully deleted")
         data_manager.delete_convo(convo_id)
-        print(f"Conversation '{convo.title}' deleted for user_id {user.id}")
+        print(f"Convo '{convo.title}' deleted for user '{user.name}'")
+
         return {f"Conversation '{convo.title}' deleted successfully"}
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -239,11 +235,8 @@ def submit_query(
     also fetch a response from the LLM API and store it.
     :return: Type[schemas.QAPair]"""
     try:
-        if not data_manager.get_user(user.id):
-            raise HTTPException(status_code=404, detail="User not found")
         convo = data_manager.get_convo(convo_id)
-        if not convo or convo.user_id != user.id:
-            raise HTTPException(status_code=404, detail="Convo not found")
+        auth.validate_users_rights_to_convo(user.id, convo_id)  # will raise E
 
         qa_pair = data_manager.create_qa_pair(convo_id, qa_init.query)
         # here: wrap query in context, truths, etc.
@@ -267,11 +260,8 @@ def update_qa_pair(
     :return: Type[schemas.QAPair]"""
     # TODO add storing of new query, fetching of new response, del of following
     try:
-        if not data_manager.get_user(user.id):
-            raise HTTPException(status_code=404, detail="User not found")
         convo = data_manager.get_convo(convo_id)
-        if not convo or convo.user_id != user.id:
-            raise HTTPException(status_code=404, detail="Convo not found")
+        auth.validate_users_rights_to_convo(user.id, convo_id)  # will raise E
 
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
