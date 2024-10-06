@@ -134,15 +134,7 @@ def change_password(
         auth.validate_pw(new_pw)  # will raise HTTPException
         user.pw = auth.get_password_hash(new_pw)
         data_manager.update_user(user)
-
-        # create new Token since pw of current authentication changed
-        # Unnecessary, because Swagger UI doesn't work that way
-        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = auth.create_access_token(
-            data={"sub": user.name}, expires_delta=access_token_expires
-        )
-        return {"msg": "Password successfully updated.",
-                "access_token": access_token}
+        return {"Password successfully updated."}
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -157,15 +149,7 @@ def change_username(
         auth.validate_user_name(new_name)  # will raise HTTPException
         user.name = new_name
         data_manager.update_user(user)
-
-        # create new Token since username of current authentication changed
-        # Unnecessary, because Swagger UI doesn't work that way
-        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = auth.create_access_token(
-            data={"sub": user.name}, expires_delta=access_token_expires
-        )
-        return {"msg": "Username successfully updated.",
-                "access_token": access_token}
+        return {"Username successfully updated."}
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
