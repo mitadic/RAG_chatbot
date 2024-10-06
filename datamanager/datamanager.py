@@ -119,8 +119,6 @@ class SQLiteDataManager:
         self.db_session.refresh(new_qa)
         return new_qa
 
-    # TODO get qa_pair? fetching a single one doesn't seem necessary
-
     def get_qa_pair(self, qa_pair_id: int):
         """Fetch a single qa_pair, not used by the App, just by 'delete'."""
         qa_pair = self.db_session.query(QAPair).filter_by(
@@ -133,7 +131,7 @@ class SQLiteDataManager:
         self.db_session.query(QAPair).filter_by(id=qa_pair.id).update({
             'response': qa_pair.response,
             'query': qa_pair.query,
-            'timestamp': qa_pair.timestamp
+            # 'timestamp': qa_pair.timestamp
         })
         self.db_session.commit()
         # self.db_session.refresh(qa_pair)  # do I dare? Ain't a SQLAlch obj

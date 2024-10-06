@@ -56,14 +56,14 @@ async def token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
 
 @app.get("/users")
 def list_users():
-    """:return: List[Type[schemas.User]]"""
+    """:return: List[Type[schemas.User]]. Does include hashed pw, but brief"""
     try:
         return data_manager.get_all_users()
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/users")
+@app.post("/users", status_code=status.HTTP_201_CREATED)
 def create_user(user: schemas.UserCreate):
     """
     schemas.UserCreate should confirm that "name" and "pw" are in payload
@@ -91,17 +91,8 @@ def create_user(user: schemas.UserCreate):
 def delete_user(
         user: Annotated[schemas.User, Depends(auth.get_current_active_user)]
 ):
-    """Delete a user by their id.
-    :Args: user_id: int
-    :Raises: HTTPException: If the recipe with the specified ID is not found.
-    Returns: dict: A status message indicating successful deletion and user_id.
-    """
+    """Delete a user by their id."""
     try:
-        # OBSOLETE due to authentication Depends()
-        # user = data_manager.get_user(user.id)
-        # if not user:
-        #     raise HTTPException(status_code=404, detail="User not found")
-
         user_convos = data_manager.get_all_convos(user.id)
         for convo in user_convos:
             qa_pairs = data_manager.get_all_qa_pairs(convo.id)
@@ -124,10 +115,10 @@ async def who_am_i(
     return user
 
 
-@app.put("/users/me/change_password")
+@app.put("/users/me/change_password", status_code=status.HTTP_204_NO_CONTENT)
 def change_password(
-        new_pw: str,
-        user: Annotated[schemas.User, Depends(auth.get_current_active_user)]
+        user: Annotated[schemas.User, Depends(auth.get_current_active_user)],
+        new_pw: str
 ):
     """Update user's password, authorized as user"""
     try:
@@ -139,10 +130,10 @@ def change_password(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.put("/users/me/change_name")
+@app.put("/users/me/change_name", status_code=status.HTTP_204_NO_CONTENT)
 def change_username(
-        new_name: str,
-        user: Annotated[schemas.User, Depends(auth.get_current_active_user)]
+        user: Annotated[schemas.User, Depends(auth.get_current_active_user)],
+        new_name: str
 ):
     """Update username, authorized as user"""
     try:
@@ -169,8 +160,8 @@ def load_convos(
 
 @app.post("/dashboard", status_code=status.HTTP_201_CREATED)
 def create_convo(
-        convo: schemas.ConvoCreate,
-        user: Annotated[schemas.User, Depends(auth.get_current_active_user)]
+        user: Annotated[schemas.User, Depends(auth.get_current_active_user)],
+        convo: schemas.ConvoCreate
 ):
     """Enforce title creation to start a Convo"""
     try:
@@ -223,19 +214,14 @@ def delete_convo(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post(
-    "/dashboard/convo/{convo_id}",
-    status_code=status.HTTP_201_CREATED
-)
+@app.post("/dashboard/convo/{convo_id}", status_code=status.HTTP_201_CREATED)
 def submit_query(
         user: Annotated[schemas.User, Depends(auth.get_current_active_user)],
         convo_id: int, qa_init: schemas.QAPairCreate
 ):
     """Initiate a QAPair by submitting a query, which, if successful will
-    also fetch a response from the LLM API and store it.
-    :return: Type[schemas.QAPair]"""
+    also fetch a response from the LLM API and store it."""
     try:
-        convo = data_manager.get_convo(convo_id)
         auth.validate_users_rights_to_convo(user.id, convo_id)  # will raise E
 
         qa_pair = data_manager.create_qa_pair(convo_id, qa_init.query)
@@ -245,126 +231,101 @@ def submit_query(
             raise HTTPException(status_code=500, detail="LLM response fail")
         qa_pair.response = response.text
         data_manager.update_qa_pair(qa_pair)
-        return qa_pair
+        return {"query": qa_pair.query, "response": qa_pair.response}
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.put("/dashboard/convo/{convo_id}/query")
-def update_qa_pair(
+@app.put("/dashboard/qa/{qa_pair_id}/resubmit_query",
+         status_code=status.HTTP_201_CREATED)
+def resubmit_query(
         user: Annotated[schemas.User, Depends(auth.get_current_active_user)],
-        convo_id: int, qa_pair: schemas.QAPair
+        qa_pair_id: int, new_query: str
 ):
     """Refresh a QAPair by replacing the query, which, if successful will
-    also fetch a new response from the LLM API and replace the old one.
-    :return: Type[schemas.QAPair]"""
-    # TODO add storing of new query, fetching of new response, del of following
+    also fetch a new response from the LLM API and replace the old one."""
     try:
-        convo = data_manager.get_convo(convo_id)
-        auth.validate_users_rights_to_convo(user.id, convo_id)  # will raise E
+        qa_pair = data_manager.get_qa_pair(qa_pair_id)
+        if qa_pair is None:
+            raise HTTPException(status_code=404, detail="Query not found")
+        auth.validate_users_rights_to_convo(user.id, qa_pair.convo_id)
+
+        # update qa_pair
+        qa_pair.query = new_query
+        # here: wrap query in context, truths, etc.
+        response = fetch_llm_response(qa_pair.query)
+        if not response:
+            raise HTTPException(status_code=500, detail="LLM response fail")
+        qa_pair.response = response.text
+        data_manager.update_qa_pair(qa_pair)
+
+        # delete all QAPairs chronologically after the updated one
+        all_convo_qa_pairs = data_manager.get_all_qa_pairs(qa_pair.convo_id)
+        for other_qa in all_convo_qa_pairs:
+            if other_qa.id > qa_pair.id:
+                data_manager.delete_qa_pair(other_qa.id)
+                print(f"QAPair with id <{other_qa.id}> successfully deleted")
+        return {"query": qa_pair.query, "response": qa_pair.response}
 
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/dashboard/convo/{convo_id}/query")
+@app.put("/dashboard/qa/{qa_pair_id}/fetch_different_response",
+         status_code=status.HTTP_201_CREATED)
+def fetch_different_response(
+        user: Annotated[schemas.User, Depends(auth.get_current_active_user)],
+        qa_pair_id: int
+):
+    """Refresh a QAPair by fetching a new response from LLM and storing it."""
+    try:
+        qa_pair = data_manager.get_qa_pair(qa_pair_id)
+        if qa_pair is None:
+            raise HTTPException(status_code=404, detail="Query not found")
+        auth.validate_users_rights_to_convo(user.id, qa_pair.convo_id)
+
+        # update qa_pair
+        # here: wrap query in context, truths, etc.
+        response = fetch_llm_response(qa_pair.query)
+        if not response:
+            raise HTTPException(status_code=500, detail="LLM response fail")
+        qa_pair.response = response.text
+        data_manager.update_qa_pair(qa_pair)
+
+        # delete all QAPairs chronologically after the updated one
+        all_convo_qa_pairs = data_manager.get_all_qa_pairs(qa_pair.convo_id)
+        for other_qa in all_convo_qa_pairs:
+            if other_qa.id > qa_pair.id:
+                data_manager.delete_qa_pair(other_qa.id)
+                print(f"QAPair with id <{other_qa.id}> successfully deleted")
+        return {"query": qa_pair.query, "response": qa_pair.response}
+
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/dashboard/qa/{qa_pair_id}")
 def delete_qa_pair(
         user: Annotated[schemas.User, Depends(auth.get_current_active_user)],
-        convo_id: int, qa_pair: schemas.QAPair
+        qa_pair_id: int
 ):
-    """"""
-    # TODO add storing of new query, fetching of new response, del of following
+    """Delete QAPair and any chronologically subsequent QAPairs"""
+    try:
+        qa_pair = data_manager.get_qa_pair(qa_pair_id)
+        if qa_pair is None:
+            raise HTTPException(status_code=404, detail="Query not found")
+        auth.validate_users_rights_to_convo(user.id, qa_pair.convo_id)
 
-
-# @app.post("/recipes", status_code=status.HTTP_201_CREATED)
-# def create_recipe(recipe: Recipe):
-#     """Create a new recipe.
-#
-#     Args:
-#         recipe (Recipe): The recipe details to create.
-#
-#     Returns:
-#         dict: The created recipe.
-#     """
-#     logger.info("entered @app.post")
-#     recipes = load_recipes()
-#     recipe_id = max((recipe["id"] for recipe in recipes), default=0) + 1
-#     recipe.id = recipe_id
-#     # .model_dump() serializes the pydantic BaseModel into Python dict
-#     recipes.append(recipe.model_dump())
-#     save_recipes(recipes)
-#     logger.info("recipes saved in @app.post")
-#     return recipe, 201
-#
-#
-# @app.get("/recipes/{recipe_id}")
-# def read_recipe(recipe_id: int):
-#     """Retrieve a single recipe by its ID.
-#
-#     Args:
-#         recipe_id (int): ID of the recipe to retrieve.
-#
-#     Raises:
-#         HTTPException: If the recipe with the specified ID is not found.
-#
-#     Returns:
-#         dict: The requested recipe.
-#     """
-#     recipes = load_recipes()
-#     recipe = next((recipe for recipe in recipes if recipe["id"] == recipe_id), None)
-#     if recipe is None:
-#         raise HTTPException(status_code=404, detail="Recipe not found")
-#     return recipe
-#
-#
-# @app.put("/recipes/{recipe_id}")
-# def update_recipe(recipe_id: int, updated_recipe: Recipe):
-#     """Update a recipe by its ID.
-#
-#     Args:
-#         recipe_id (int): ID of the recipe to update.
-#         updated_recipe (Recipe): New details for the recipe.
-#
-#     Raises:
-#         HTTPException: If the recipe with the specified ID is not found.
-#
-#     Returns:
-#         dict: The updated recipe.
-#     """
-#     recipes = load_recipes()
-#     recipe_index = next((index for index, r in enumerate(recipes) if r["id"] == recipe_id), None)
-#
-#     if recipe_index is None:
-#         raise HTTPException(status_code=404, detail="Recipe not found")
-#
-#     updated_recipe.id = recipe_id
-#     recipes[recipe_index] = updated_recipe.model_dump()
-#     save_recipes(recipes)
-#     return updated_recipe
-#
-#
-# @app.delete("/recipes/{recipe_id}")
-# def delete_recipe(recipe_id: int):
-#     """Delete a recipe by its ID.
-#
-#     Args:
-#         recipe_id (int): ID of the recipe to delete.
-#
-#     Raises:
-#         HTTPException: If the recipe with the specified ID is not found.
-#
-#     Returns:
-#         dict: A status message indicating successful deletion.
-#     """
-#     recipes = load_recipes()
-#     recipe_index = next((index for index, r in enumerate(recipes) if r["id"] == recipe_id), None)
-#
-#     if recipe_index is None:
-#         raise HTTPException(status_code=404, detail="Recipe not found")
-#
-#     del recipes[recipe_index]
-#     save_recipes(recipes)
-#     return {"status": "success", "message": "Recipe deleted successfully"}
+        # delete all QAPairs chronologically after the one being updated
+        all_convo_qa_pairs = data_manager.get_all_qa_pairs(qa_pair.convo_id)
+        for other_qa in all_convo_qa_pairs:
+            if other_qa.id > qa_pair.id:
+                data_manager.delete_qa_pair(other_qa.id)
+                print(f"QAPair with id <{other_qa.id}> successfully deleted")
+        data_manager.delete_qa_pair(qa_pair.id)
+        return {f"QAPair with id <{qa_pair.id}> successfully deleted"}
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

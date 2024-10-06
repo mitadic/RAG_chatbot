@@ -24,7 +24,7 @@ def validate_users_rights_to_convo(user_id: int, convo_id: int):
     if not convo:
         raise HTTPException(status_code=404, detail="Convo not found")
     if convo.user_id != user_id:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+        raise HTTPException(status_code=403, detail="Forbidden")
 
 
 def validate_user_name(name: str):
