@@ -1,4 +1,4 @@
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import declarative_base, relationship, backref
 from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, DateTime
 
 # Create a base class for declarative models, the parent for tables ("classes")
@@ -44,6 +44,34 @@ class QAPair(Base):
     query = Column(String, nullable=False)
     response = Column(String, nullable=True)
     timestamp = Column(DateTime, nullable=False)
+
+
+class ConvoTruth(Base):
+    """"""
+    __tablename__ = 'convo_truths'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    convo_id = Column(ForeignKey('convos.id'), nullable=False)
+    truth_id = Column(ForeignKey('truths.id'), nullable=False)
+
+    # Relationships to Convo and Truth tables
+    convo = relationship('Convo', backref=backref('truths'))
+    truth = relationship('Truth', backref=backref('convos'))
+
+
+class Truth(Base):
+    """"""
+    __tablename__ = 'truths'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    doc_id = Column(ForeignKey('docs.id'), nullable=False)
+    text_bit = Column(String, nullable=False)
+    bit_summary = Column(String, nullable=False)
+
+
+class Doc(Base):
+    """"""
+    __tablename__ = 'docs'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    text = Column(String, nullable=False)
 
 
 # class Token(Base):
