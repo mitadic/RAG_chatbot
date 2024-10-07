@@ -70,6 +70,24 @@ class QAPair(QAPairCreate):
 		from_attributes = True  # 'orm_mode' has since been renamed to this
 
 
+class TruthCreate(BaseModel):
+	""""""
+	doc_id: int
+	text_bit: str
+	bit_summary: str
+
+	class Config:
+		extra = "forbid"  # makes FastAPI reject unsolicited payload extras
+
+
+class Truth(TruthCreate):
+	"""Truth with id as well"""
+	id: int
+
+	class Config:
+		from_attributes = True  # 'orm_mode' has since been renamed to this
+
+
 class Token(BaseModel):
 	access_token: str
 	token_type: str
