@@ -243,7 +243,8 @@ def resubmit_query(
         qa_pair_id: int, new_query: str
 ):
     """Refresh a QAPair by replacing the query, which, if successful will
-    also fetch a new response from the LLM API and replace the old one."""
+    also fetch a new response from the LLM API and replace the old one, as
+    well as delete subsequent QAPairs ChatGPT-style."""
     try:
         qa_pair = data_manager.get_qa_pair(qa_pair_id)
         if qa_pair is None:
@@ -277,7 +278,8 @@ def fetch_different_response(
         user: Annotated[schemas.User, Depends(auth.get_current_active_user)],
         qa_pair_id: int
 ):
-    """Refresh a QAPair by fetching a new response from LLM and storing it."""
+    """Refresh a QAPair by fetching a new response from LLM and storing it,
+    as well as deleting subsequent QAPairs ChatGPT-style."""
     try:
         qa_pair = data_manager.get_qa_pair(qa_pair_id)
         if qa_pair is None:
