@@ -14,6 +14,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 # from fastapi.responses import RedirectResponse  # no Frontend ==> no Redir
 from sqlalchemy.exc import SQLAlchemyError
 import schemas.schemas as schemas
+import utils.wrap as wrap
 import utils.authentication as auth
 from datamanager.datamanager import SQLiteDataManager
 from utils.response_fetcher import fetch_llm_response
@@ -185,8 +186,6 @@ def load_convo(
         auth.validate_users_rights_to_convo(user.id, convo_id)  # will raise E
 
         qa_pairs = data_manager.get_all_qa_pairs(convo_id)
-        # they seem sorted anyway, this is a temporary safeguard
-        qa_pairs = sorted(qa_pairs, key=lambda x: x.id)
         return {"convo": convo, "qa_pairs": qa_pairs}
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -224,9 +223,16 @@ def submit_query(
     try:
         auth.validate_users_rights_to_convo(user.id, convo_id)  # will raise E
 
+        # create qa_pair
         qa_pair = data_manager.create_qa_pair(convo_id, qa_init.query)
-        # here: wrap query in context, truths, etc.
-        response = fetch_llm_response(qa_pair.query)
+
+        # wrap the LLM query in context, truths, etc.
+        all_convo_qa_pairs = data_manager.get_all_qa_pairs(convo_id)
+        wrapper = wrap.convo_thus_far(all_convo_qa_pairs,
+                                      all_convo_qa_pairs[-1].id)
+
+        # send query to LLM
+        response = fetch_llm_response(wrapper + qa_pair.query)
         if not response:
             raise HTTPException(status_code=500, detail="LLM response fail")
         qa_pair.response = response.text
@@ -249,19 +255,21 @@ def resubmit_query(
         qa_pair = data_manager.get_qa_pair(qa_pair_id)
         if qa_pair is None:
             raise HTTPException(status_code=404, detail="Query not found")
-        auth.validate_users_rights_to_convo(user.id, qa_pair.convo_id)
+        auth.validate_users_rights_to_convo(user.id, qa_pair.convo_id)  # E
+
+        # Get all qa_pairs, then generate wrapper
+        all_convo_qa_pairs = data_manager.get_all_qa_pairs(qa_pair.convo_id)
+        wrapper = wrap.convo_thus_far(all_convo_qa_pairs, qa_pair_id)
 
         # update qa_pair
         qa_pair.query = new_query
-        # here: wrap query in context, truths, etc.
-        response = fetch_llm_response(qa_pair.query)
+        response = fetch_llm_response(wrapper + qa_pair.query)
         if not response:
             raise HTTPException(status_code=500, detail="LLM response fail")
         qa_pair.response = response.text
         data_manager.update_qa_pair(qa_pair)
 
         # delete all QAPairs chronologically after the updated one
-        all_convo_qa_pairs = data_manager.get_all_qa_pairs(qa_pair.convo_id)
         for other_qa in all_convo_qa_pairs:
             if other_qa.id > qa_pair.id:
                 data_manager.delete_qa_pair(other_qa.id)
@@ -286,16 +294,18 @@ def fetch_different_response(
             raise HTTPException(status_code=404, detail="Query not found")
         auth.validate_users_rights_to_convo(user.id, qa_pair.convo_id)
 
+        # Get all qa_pairs, then generate wrapper
+        all_convo_qa_pairs = data_manager.get_all_qa_pairs(qa_pair.convo_id)
+        wrapper = wrap.convo_thus_far(all_convo_qa_pairs, qa_pair_id)
+
         # update qa_pair
-        # here: wrap query in context, truths, etc.
-        response = fetch_llm_response(qa_pair.query)
+        response = fetch_llm_response(wrapper + qa_pair.query)
         if not response:
             raise HTTPException(status_code=500, detail="LLM response fail")
         qa_pair.response = response.text
         data_manager.update_qa_pair(qa_pair)
 
         # delete all QAPairs chronologically after the updated one
-        all_convo_qa_pairs = data_manager.get_all_qa_pairs(qa_pair.convo_id)
         for other_qa in all_convo_qa_pairs:
             if other_qa.id > qa_pair.id:
                 data_manager.delete_qa_pair(other_qa.id)
