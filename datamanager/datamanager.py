@@ -108,6 +108,8 @@ class SQLiteDataManager:
     def get_all_qa_pairs(self, convo_id: int):
         qa_pairs = self.db_session.query(QAPair) \
             .filter(QAPair.convo_id == literal(convo_id)).all()
+        # they seem sorted anyway, this is a temporary safeguard
+        qa_pairs = sorted(qa_pairs, key=lambda x: x.id)
         return qa_pairs
 
     def create_qa_pair(self, convo_id: int, query: str):
