@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy import literal, and_
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import relationship, backref
-from datamanager.models import Base, User, Convo, QAPair, Doc, Truth, ConvoTruth
+from datamanager.models import Base, User, Convo, QAPair, Doc
 import schemas.schemas as schemas
 
 
