@@ -36,7 +36,7 @@ class QAPair(Base):
     Question-Answer paradigm chunk. Has:
     - query (question)
     - response (answer, nullable)
-    - timestamp => to sort them in a convo each time
+    - timestamp => no longer used for sorting, sorting by id works fine
     """
     __tablename__ = 'qa_pairs'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -46,40 +46,9 @@ class QAPair(Base):
     timestamp = Column(DateTime, nullable=False)
 
 
-class ConvoTruth(Base):
-    """"""
-    __tablename__ = 'convo_truths'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    convo_id = Column(ForeignKey('convos.id'), nullable=False)
-    truth_id = Column(ForeignKey('truths.id'), nullable=False)
-
-    # Relationships to Convo and Truth tables
-    convo = relationship('Convo', backref=backref('truths'))
-    truth = relationship('Truth', backref=backref('convos'))
-
-
-class Truth(Base):
-    """"""
-    __tablename__ = 'truths'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    doc_id = Column(ForeignKey('docs.id'), nullable=False)
-    text_bit = Column(String, nullable=False)
-    bit_summary = Column(String, nullable=False)
-
-
 class Doc(Base):
     """"""
     __tablename__ = 'docs'
     id = Column(Integer, primary_key=True, autoincrement=True)
     text = Column(String, nullable=False)
 
-
-# class Token(Base):
-#     """
-#     Token as a string, relates to a user_id.
-#     """
-#     __tablename__ = 'tokens'
-#     id = Column(Integer, primary_key=True, autoincrement=True)
-#     token = Column(String, unique=True)
-#     user_id = Column(Integer, ForeignKey('users.id'))
-#     expires_at = Column(DateTime, nullable=True)
