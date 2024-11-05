@@ -4,7 +4,10 @@ import schemas.schemas as schemas
 HOW_MANY_PREVIOUS_PAIRS = 5
 WRAPPER_INIT = \
 	"You are in the role of a chatbot in an ongoing conversation." \
-	" The dialogue consists of pairs of (1) user queries and (2) " \
+	" The user is providing you with documents as sources and wants you to " \
+	" consider only these provided sources when replying - you shall not " \
+	" rely on general knowledge other than these 'Source facts' at the" \
+	" bottom. The dialogue consists of pairs of (1) user queries and (2) " \
 	"your responses. Consider these previous queries and responses" \
 	" (if any) when replying to the 'new_query' below them:\n"
 

@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy import literal, and_
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import relationship, backref
-from datamanager.models import Base, User, Convo, QAPair, Doc
+from datamanager.models import Base, User, Convo, QAPair, Chunk
 import schemas.schemas as schemas
 
 
@@ -96,12 +96,7 @@ class SQLiteDataManager:
     # TODO update convo? (only the title obviously)
 
     def delete_convo(self, convo_id: int):
-        """Delete related ConvoTruths, then the Convo itself"""
-        convo_truths_to_del = self.db_session.query(ConvoTruth) \
-            .filter_by(convo_id=convo_id).all()
-        for convo_truth in convo_truths_to_del:
-            self.db_session.delete(convo_truth)
-
+        """Delete the Convo"""
         self.db_session.delete(self.get_convo(convo_id))
         self.db_session.commit()
 
@@ -147,97 +142,32 @@ class SQLiteDataManager:
         self.db_session.delete(self.get_qa_pair(qa_pair_id))
         self.db_session.commit()
 
-    def get_all_convo_truths(self, convo_id: int):
-        """Fetch all Truth objects that match convo_id in the junction.
-        We consult (!) ConvoTruth in order to fetch a [] of all Truth (!)
-        objects which are also registered in the junction table. Then we
-        filter that joined list for convo_id matches."""
-        convo_truths_list = self.db_session.query(Truth) \
-            .join(ConvoTruth, Truth.id == ConvoTruth.truth_id) \
-            .filter(ConvoTruth.convo_id == literal(convo_id)) \
-            .all()
-        return convo_truths_list
+    def get_all_chunks(self):
+        """Retrieve all chunks"""
+        chunks = self.db_session.query(Chunk).all()
+        return chunks
 
-    def create_convo_truth(self, convo_id: int, truth_id: int):
-        """Add a new relation of a convo to a truth"""
+    def get_chunks_count(self):
+        """Get the total len of all chunks"""
+        return len(self.get_all_chunks())
 
-        # Verify that the relationship doesn't already exist in 'convo_truths'
-        # This will be done at the endpoint, not here
-        existing_relationship = self.db_session.query(ConvoTruth).filter_by(
-            convo_id=convo_id, truth_id=truth_id).first()
-        if existing_relationship:
-            print(f"Convo {convo_id} already has the truth {truth_id}!")
-            return
-
-        # Add a new relationship entry to 'convo_truths'
-        new_relationship = ConvoTruth(convo_id=convo_id, truth_id=truth_id)
-        self.db_session.add(new_relationship)
+    def create_chunk(self, text: str):
+        """Store new chunk"""
+        new_chunk = Chunk(text=text)
+        self.db_session.add(new_chunk)
         self.db_session.commit()
-        return new_relationship
+        self.db_session.refresh(new_chunk)
+        return new_chunk
 
-    def delete_convo_truth(self, convo_id: int, truth_id: int):
-        """Delete a relation of a convo to a truth. This is only needed when
-        decoupling a convo from a truth, not when deleting either a convo
-        or a truth alone (see delete_convo and delete_truth and notice that
-        neither has both necessary IDs)"""
-        convo_truth_to_delete = self.db_session.query(ConvoTruth) \
-            .filter_by(convo_id=convo_id, truth_id=truth_id).first()
-        self.db_session.delete(convo_truth_to_delete)
-        self.db_session.commit()
+    def get_chunk(self, chunk_id: int):
+        """Fetch single SQLite-stored Chunk from the database."""
+        chunk = self.db_session.query(Chunk).filter_by(
+            id=chunk_id).one()
+        return chunk
 
-    def get_all_truths(self):
-        """This doesn't seem needed atm"""
-        pass
-
-    def create_truth(self, truth: schemas.TruthCreate) -> schemas.Truth:
-        """Create new Truth with input, return with id assigned"""
-        new_truth = Truth(doc_id=truth.doc_id,
-                          text_bit=truth.text_bit,
-                          bit_summary=truth.bit_summary)
-        self.db_session.add(new_truth)
-        self.db_session.commit()
-        self.db_session.refresh(new_truth)
-        return new_truth
-
-    def get_truth(self, truth_id: int):
-        """Fetch single Truth object from the database."""
-        truth = self.db_session.query(Truth).filter_by(
-            id=truth_id).first()
-        return truth
-
-    def delete_truth(self, truth_id: int):
-        """Remove related ConvoTruths, then the Truth itself"""
-        convo_truths_to_del = self.db_session.query(ConvoTruth) \
-            .filter_by(truth_id=truth_id).all()
-        for convo_truth in convo_truths_to_del:
-            self.db_session.delete(convo_truth)
-
-        self.db_session.delete(self.get_truth(truth_id))
-        self.db_session.commit()
-
-    def get_all_docs(self):
-        """Retrieve all docs"""
-        docs = self.db_session.query(Doc).all()
-        return docs
-
-    def create_doc(self, text: str):
-        """Upload new Doc"""
-        new_doc = Doc(text=text)
-        self.db_session.add(new_doc)
-        self.db_session.commit()
-        self.db_session.refresh(new_doc)
-        return new_doc
-
-    def get_doc(self, doc_id: int):
-        """Fetch single Doc object from the database."""
-        doc = self.db_session.query(Doc).filter_by(
-            id=doc_id).first()
-        return doc
-
-    def delete_doc(self, doc_id: int):
-        """Remove a Doc from the database, and related Truths & ConvoTruths"""
-        truths_to_del = self.db_session.query()
-        self.db_session.delete(self.get_doc(doc_id))
+    def delete_chunk(self, chunk_id: int):
+        """Remove a Chunk from the SQLite database"""
+        self.db_session.delete(self.get_chunk(chunk_id))
         self.db_session.commit()
 
     # def delete_movie(self, user_id: int, movie_id: int):

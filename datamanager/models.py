@@ -46,9 +46,8 @@ class QAPair(Base):
     timestamp = Column(DateTime, nullable=False)
 
 
-class Doc(Base):
+class Chunk(Base):
     """"""
-    __tablename__ = 'docs'
+    __tablename__ = 'chunks'
     id = Column(Integer, primary_key=True, autoincrement=True)
     text = Column(String, nullable=False)
-

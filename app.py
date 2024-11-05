@@ -2,17 +2,24 @@
 RAG Chatbot Application.
 This module provides endpoints for CRUD operations on DA.
 It uses SQLite + SQLAlchemy.orm for storage, FastAPI for the server, OAuth2
-with JWT Tokens for authentication, Gemini 1.5 API for generating responses.
+with JWT Tokens for authentication, Gemini 1.5 API for generating responses,
+FAISS for client-side similarity search in vector DB.
 """
 
 import logging
 import uvicorn
+import re
+from pathlib import Path
 from typing import Annotated
 from datetime import timedelta
-from fastapi import FastAPI, HTTPException, status, Depends
+from fastapi import FastAPI, HTTPException, status, Depends, File, UploadFile
 from fastapi.security import OAuth2PasswordRequestForm
 # from fastapi.responses import RedirectResponse  # no Frontend ==> no Redir
 from sqlalchemy.exc import SQLAlchemyError
+import pdfplumber
+import faiss
+from sentence_transformers import SentenceTransformer
+import numpy as np
 import schemas.schemas as schemas
 import utils.wrap as wrap
 import utils.authentication as auth
@@ -23,11 +30,84 @@ logging.basicConfig(level=logging.INFO)
 logging.getLogger("passlib.handlers.bcrypt").setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
 
-data_manager = SQLiteDataManager()
+# Load the local embedding model
+model = SentenceTransformer('all-MiniLM-L6-v2')
 
+# Create a FAISS index
+FAISS_INDEX_PATH = "data/faiss_index.index"
+if Path(FAISS_INDEX_PATH).exists():
+    index = faiss.read_index(FAISS_INDEX_PATH)
+else:
+    dimension = 384  # the model's embedding size
+    flat_index = faiss.IndexFlatL2(dimension)
+    index = faiss.IndexIDMap(flat_index)  # Wrap the flat index to allow IDs
+
+data_manager = SQLiteDataManager()
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 app = FastAPI()
 
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+def get_relevant_chunks(user_query: str, top_k: int = 5):
+    """Embed user query to perform similarity search and retrieve relevant
+    sentences from the vector database"""
+    try:
+        chunks_count = data_manager.get_chunks_count()
+        top_k = min(top_k, chunks_count)
+        # Generate the embedding for the user query
+        query_embedding = model.encode(user_query)
+        query_embedding = np.array([query_embedding], dtype=np.float32)
+        # Search for the top_k most similar embeddings
+        distances, indices = index.search(query_embedding, top_k)
+        # Collect the most relevant sentences based on indices
+        results = "\n'Source facts from the documents provided':\n"
+        if indices[0][0] == -1:
+            return results + "No relevant chunks found"
+        for i in range(top_k):
+            idx = indices[0][i]  # idx has a numpy.int64 type, convert it
+            chunk = data_manager.get_chunk(int(idx))
+            results += chunk.text + '\n'
+        print(results)
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500,
+                            detail=f"An error occurred: {str(e)}")
+
+
+@app.post("/upload_document", status_code=status.HTTP_201_CREATED)
+async def upload_document(file: UploadFile = File(...)):
+    """Upload plaintext or PDF files to be split and generate embeddings to
+    add to a server-local ("offline") FAISS index"""
+    try:
+        # Check file type
+        if not (file.content_type in ["application/pdf", "text/plain"]):
+            raise HTTPException(status_code=400,
+                                detail="Unsupported file type")
+        # Extract text from the file
+        if file.content_type == "application/pdf":
+            with pdfplumber.open(file.file) as pdf:
+                text = " ".join(
+                    page.extract_text() or "" for page in pdf.pages)
+        else:  # type is "text/plain"
+            text = (await file.read()).decode("utf-8")
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="No text in the doc")
+        # Split text into sentences
+        sentences = re.split(r'(?<=[.!?]) +', text)
+        # Generate embeddings and add to FAISS index
+        for sentence in sentences:
+            if sentence.strip():
+                new_chunk = data_manager.create_chunk(sentence)  # SQLite
+                embedding = model.encode(sentence)
+                embedding = np.array([embedding], dtype=np.float32)
+                # Add the embedding to FAISS and map its index to the chunk ID
+                index.add_with_ids(embedding, np.array([new_chunk.id],
+                                                       dtype=np.int64))
+        # Save the updated FAISS index to a file
+        faiss.write_index(index, FAISS_INDEX_PATH)
+        return {"title": file.filename, "status": "processing success"}
+    except Exception as e:
+        raise HTTPException(status_code=500,
+                            detail=f"Error: {str(e)}")
 
 
 @app.post("/token")
@@ -226,13 +306,15 @@ def submit_query(
         # create qa_pair
         qa_pair = data_manager.create_qa_pair(convo_id, qa_init.query)
 
-        # wrap the LLM query in context, truths, etc.
+        # wrap the LLM query in context, chunks, etc.
         all_convo_qa_pairs = data_manager.get_all_qa_pairs(convo_id)
         wrapper = wrap.convo_thus_far(all_convo_qa_pairs,
                                       all_convo_qa_pairs[-1].id)
 
         # send query to LLM
-        response = fetch_llm_response(wrapper + qa_pair.query)
+        facts = get_relevant_chunks(qa_pair.query)
+        print(facts)
+        response = fetch_llm_response(wrapper + qa_pair.query + facts)
         if not response:
             raise HTTPException(status_code=500, detail="LLM response fail")
         qa_pair.response = response.text

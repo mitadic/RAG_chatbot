@@ -11,3 +11,7 @@ pyjwt
 passlib[bcrypt]
 # google-cloud
 # google-cloud-vision
+pdfplumber
+faiss-cpu  # Facebook AI Similarity Search for client-side VectorDB embeddings
+sentence_transformers
+numpy
