@@ -46,8 +46,27 @@ class QAPair(Base):
     timestamp = Column(DateTime, nullable=False)
 
 
+class Doc(Base):
+    """"""
+    __tablename__ = 'docs'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String, nullable=False)
+
+
 class Chunk(Base):
     """"""
     __tablename__ = 'chunks'
     id = Column(Integer, primary_key=True, autoincrement=True)
     text = Column(String, nullable=False)
+
+
+class DocChunk(Base):
+    """"""
+    __tablename__ = 'doc_chunks'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    doc_id = Column(ForeignKey('docs.id'), nullable=False)
+    chunk_id = Column(ForeignKey('chunks.id'), nullable=False)
+
+    # Relationships to Convo and Truth tables
+    doc = relationship('Doc', backref=backref('chunks'))
+    chunk = relationship('Chunk', backref=backref('docs'))

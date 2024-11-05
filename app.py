@@ -50,8 +50,11 @@ app = FastAPI()
 def get_relevant_chunks(user_query: str, top_k: int = 5):
     """Embed user query to perform similarity search and retrieve relevant
     sentences from the vector database"""
+    results = "\n'Source facts from the documents provided':\n"
     try:
         chunks_count = data_manager.get_chunks_count()
+        if chunks_count < 1:
+            return results + "No relevant chunks found"
         top_k = min(top_k, chunks_count)
         # Generate the embedding for the user query
         query_embedding = model.encode(user_query)
@@ -59,55 +62,16 @@ def get_relevant_chunks(user_query: str, top_k: int = 5):
         # Search for the top_k most similar embeddings
         distances, indices = index.search(query_embedding, top_k)
         # Collect the most relevant sentences based on indices
-        results = "\n'Source facts from the documents provided':\n"
         if indices[0][0] == -1:
             return results + "No relevant chunks found"
         for i in range(top_k):
             idx = indices[0][i]  # idx has a numpy.int64 type, convert it
             chunk = data_manager.get_chunk(int(idx))
             results += chunk.text + '\n'
-        print(results)
         return results
     except Exception as e:
         raise HTTPException(status_code=500,
                             detail=f"An error occurred: {str(e)}")
-
-
-@app.post("/upload_document", status_code=status.HTTP_201_CREATED)
-async def upload_document(file: UploadFile = File(...)):
-    """Upload plaintext or PDF files to be split and generate embeddings to
-    add to a server-local ("offline") FAISS index"""
-    try:
-        # Check file type
-        if not (file.content_type in ["application/pdf", "text/plain"]):
-            raise HTTPException(status_code=400,
-                                detail="Unsupported file type")
-        # Extract text from the file
-        if file.content_type == "application/pdf":
-            with pdfplumber.open(file.file) as pdf:
-                text = " ".join(
-                    page.extract_text() or "" for page in pdf.pages)
-        else:  # type is "text/plain"
-            text = (await file.read()).decode("utf-8")
-        if not text.strip():
-            raise HTTPException(status_code=400, detail="No text in the doc")
-        # Split text into sentences
-        sentences = re.split(r'(?<=[.!?]) +', text)
-        # Generate embeddings and add to FAISS index
-        for sentence in sentences:
-            if sentence.strip():
-                new_chunk = data_manager.create_chunk(sentence)  # SQLite
-                embedding = model.encode(sentence)
-                embedding = np.array([embedding], dtype=np.float32)
-                # Add the embedding to FAISS and map its index to the chunk ID
-                index.add_with_ids(embedding, np.array([new_chunk.id],
-                                                       dtype=np.int64))
-        # Save the updated FAISS index to a file
-        faiss.write_index(index, FAISS_INDEX_PATH)
-        return {"title": file.filename, "status": "processing success"}
-    except Exception as e:
-        raise HTTPException(status_code=500,
-                            detail=f"Error: {str(e)}")
 
 
 @app.post("/token")
@@ -133,6 +97,70 @@ async def token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
         data={"sub": user.name}, expires_delta=access_token_expires
     )
     return schemas.Token(access_token=access_token, token_type="bearer")
+
+
+@app.get("/documents")
+async def view_all_documents():
+    """Retrieve all Doc ids and the corresponding titles"""
+    return data_manager.get_all_docs()
+
+
+@app.post("/upload_document", status_code=status.HTTP_201_CREATED)
+async def upload_document(file: UploadFile = File(...)):
+    """Upload plaintext or PDF files to be split and generate embeddings to
+    add to a server-local ("offline") FAISS index"""
+    try:
+        # Check file type
+        if not (file.content_type in ["application/pdf", "text/plain"]):
+            raise HTTPException(status_code=400,
+                                detail="Unsupported file type")
+        # Extract text from the file
+        if file.content_type == "application/pdf":
+            with pdfplumber.open(file.file) as pdf:
+                text = " ".join(
+                    page.extract_text() or "" for page in pdf.pages)
+        else:  # type is "text/plain"
+            text = (await file.read()).decode("utf-8")
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="No text in the doc")
+        # Split text into sentences
+        sentences = re.split(r'(?<=[.!?]) +', text)
+        new_doc = data_manager.create_doc(file.filename)
+        # Generate embeddings and add to FAISS index
+        for sentence in sentences:
+            if sentence.strip():
+                new_chunk = data_manager.create_chunk(sentence)  # SQLite
+                data_manager.create_doc_chunk(new_doc.id, new_chunk.id)
+                embedding = model.encode(sentence)
+                embedding = np.array([embedding], dtype=np.float32)
+                # Add the embedding to FAISS and map its index to the chunk ID
+                index.add_with_ids(embedding, np.array([new_chunk.id],
+                                                       dtype=np.int64))
+        # Save the updated FAISS index to a file
+        faiss.write_index(index, FAISS_INDEX_PATH)
+        return {"title": file.filename, "status": "processed", "id": new_doc.id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+
+@app.delete("/remove_document/{doc_id}")
+def remove_document(doc_id: int):
+    global index
+    try:
+        # ORM first
+        filename = data_manager.get_doc(doc_id).title
+        if filename is None:
+            raise HTTPException(status_code=404, detail="Doc not found")
+        chunks_to_del = data_manager.get_all_doc_chunks(doc_id)
+        chunk_to_del_ids = [chunk.id for chunk in chunks_to_del]
+        data_manager.delete_doc(doc_id)
+
+        # Remove the embeddings from the FAISS index
+        for chunk_id in chunk_to_del_ids:
+            index.remove_ids(np.array([chunk_id], dtype=np.int64))
+        return {"title": filename, "status": "removed from database"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 
 @app.get("/users")
@@ -310,10 +338,8 @@ def submit_query(
         all_convo_qa_pairs = data_manager.get_all_qa_pairs(convo_id)
         wrapper = wrap.convo_thus_far(all_convo_qa_pairs,
                                       all_convo_qa_pairs[-1].id)
-
-        # send query to LLM
+        # run through RAG to get chunks, then send query to LLM
         facts = get_relevant_chunks(qa_pair.query)
-        print(facts)
         response = fetch_llm_response(wrapper + qa_pair.query + facts)
         if not response:
             raise HTTPException(status_code=500, detail="LLM response fail")
@@ -345,7 +371,9 @@ def resubmit_query(
 
         # update qa_pair
         qa_pair.query = new_query
-        response = fetch_llm_response(wrapper + qa_pair.query)
+        # run through RAG to get chunks, then send query to LLM
+        facts = get_relevant_chunks(qa_pair.query)
+        response = fetch_llm_response(wrapper + qa_pair.query + facts)
         if not response:
             raise HTTPException(status_code=500, detail="LLM response fail")
         qa_pair.response = response.text
@@ -380,8 +408,9 @@ def fetch_different_response(
         all_convo_qa_pairs = data_manager.get_all_qa_pairs(qa_pair.convo_id)
         wrapper = wrap.convo_thus_far(all_convo_qa_pairs, qa_pair_id)
 
-        # update qa_pair
-        response = fetch_llm_response(wrapper + qa_pair.query)
+        # run through RAG to get chunks, then resend the old query to LLM
+        facts = get_relevant_chunks(qa_pair.query)
+        response = fetch_llm_response(wrapper + qa_pair.query + facts)
         if not response:
             raise HTTPException(status_code=500, detail="LLM response fail")
         qa_pair.response = response.text

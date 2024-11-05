@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy import literal, and_
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import relationship, backref
-from datamanager.models import Base, User, Convo, QAPair, Chunk
+from datamanager.models import Base, User, Convo, QAPair, Doc, Chunk, DocChunk
 import schemas.schemas as schemas
 
 
@@ -142,14 +142,64 @@ class SQLiteDataManager:
         self.db_session.delete(self.get_qa_pair(qa_pair_id))
         self.db_session.commit()
 
+    def get_all_docs(self):
+        """Retrieve all Docs"""
+        docs = self.db_session.query(Doc).all()
+        return docs
+
+    def create_doc(self, title: str):
+        """Store new Doc"""
+        new_doc = Doc(title=title)
+        self.db_session.add(new_doc)
+        self.db_session.commit()
+        self.db_session.refresh(new_doc)
+        return new_doc
+
+    def get_doc(self, doc_id: int):
+        """Fetch single SQLite-stored Doc from the database."""
+        doc = self.db_session.query(Doc).filter_by(
+            id=doc_id).one()
+        return doc
+
+    def delete_doc(self, doc_id: int):
+        """Remove a Doc from the SQLite database.
+        But remove all related chunks and records of relation first."""
+        doc_chunks = self.get_all_doc_chunks(doc_id)
+        for chunk in doc_chunks:
+            self.delete_doc_chunk(doc_id, chunk.id)
+            self.delete_chunk(chunk.id)
+        self.db_session.delete(self.get_doc(doc_id))
+        self.db_session.commit()
+
+    def get_all_doc_chunks(self, doc_id: int):
+        """Fetch all Chunk objects that match doc_id in the junction.
+        We consult (!) DocChunk in order to fetch a [] of all Chunk (!)
+        objects which are also registered in the junction table. Then we
+        filter that joined list for doc_id matches."""
+        doc_chunks_list = self.db_session.query(Chunk) \
+            .join(DocChunk, Chunk.id == DocChunk.chunk_id) \
+            .filter(DocChunk.doc_id == literal(doc_id)) \
+            .all()
+        return doc_chunks_list
+
+    def create_doc_chunk(self, doc_id: int, chunk_id: int):
+        """Add a new relation of a doc to a chunk"""
+        new_relationship = DocChunk(doc_id=doc_id, chunk_id=chunk_id)
+        self.db_session.add(new_relationship)
+        self.db_session.commit()
+        return new_relationship
+
+    def delete_doc_chunk(self, doc_id: int, chunk_id: int):
+        """Delete a relation of a doc to a chunk."""
+        doc_chunk_to_delete = self.db_session.query(DocChunk) \
+            .filter_by(doc_id=doc_id, chunk_id=chunk_id).first()
+        self.db_session.delete(doc_chunk_to_delete)
+        self.db_session.commit()
+
     def get_all_chunks(self):
         """Retrieve all chunks"""
         chunks = self.db_session.query(Chunk).all()
         return chunks
-
-    def get_chunks_count(self):
-        """Get the total len of all chunks"""
-        return len(self.get_all_chunks())
 
     def create_chunk(self, text: str):
         """Store new chunk"""
@@ -165,19 +215,11 @@ class SQLiteDataManager:
             id=chunk_id).one()
         return chunk
 
+    def get_chunks_count(self):
+        """Get the total len of all chunks"""
+        return len(self.get_all_chunks())
+
     def delete_chunk(self, chunk_id: int):
         """Remove a Chunk from the SQLite database"""
         self.db_session.delete(self.get_chunk(chunk_id))
         self.db_session.commit()
-
-    # def delete_movie(self, user_id: int, movie_id: int):
-    #     """Remove the user-movie relationship entry, remove movie entry"""
-    #     relationship_to_del = self.db_session.query(UserMovie). \
-    #         filter(UserMovie.user_id == user_id,
-    #                UserMovie.movie_id == movie_id).one()
-    #     movie_to_del = self.db_session.query(Movie) \
-    #         .filter(Movie.id == literal(movie_id)).one()
-    #     self.db_session.delete(relationship_to_del)
-    #     self.db_session.delete(movie_to_del)
-    #     self.db_session.commit()
-    #     print(f"Movie with id <{movie_id}> successfully deleted.")
