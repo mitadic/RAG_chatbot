@@ -4,10 +4,16 @@ A chatbot service utilising an LLM API, enhanced with RAG.
 <img width="692" alt="image" src="https://github.com/user-attachments/assets/6d6224c3-a19a-4292-9ec0-bc9aa57088f4">
 
 ## Project features and technologies overview
-* Database management: sqlalchemy.orm
-* Endpoint routing: Fast API
-* 3rd party API: Gemini API
-* UI: auto-generated Swagger UI
+| Component | Technology |
+| --------- | ---------- |
+Database | SQLite
+Database interaction | sqlalchemy.orm
+Endpoint routing | FastAPI
+LLM API | Gemini API
+Authentication | fastapi.security.OAuth2PasswordBearer
+RAG (vector DB embeddings and sim. search) | Faiss
+UI | auto-generated Swagger UI
+To see all the project dependencies, check out [requirements.txt](/requirements.txt)
 
 ## Installation
 
@@ -36,16 +42,16 @@ A chatbot service utilising an LLM API, enhanced with RAG.
 
 Run the app.
 ```bash
-python app.py
+python3 app.py
 ```
 
 Visit the now locally hosted homepage via any browser.
 ```
-https://127.0.0.1:5000
+https://127.0.0.1:8000
 ```
 
 > [!NOTE]
-> If you wish to start your own database from scratch, delete the demo file `library.sqlite` in directory `data/`
+> If you wish to start over from scratch and initialize a fresh database, delete the files (`.sqlite` and `.index`) in the directory `data/`
 
 ## Feedback
 
@@ -53,7 +59,7 @@ If you have any feedback, feel free to reach out.
 
 | <img src="https://github.githubassets.com/assets/GitHub-Mark-ea2971cee799.png" alt="gh_logo.png" width="15" height="15"/> | <img src="https://cdn3.iconfinder.com/data/icons/web-ui-3/128/Mail-2-512.png" alt="email_icon.jpg" width="15" height="15"/> |
 | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| [@MilosTadic01](github.com/MilosTadic01)                                                                                  | `milosgtadic` at yahoo.com                                                                                                       |
+| [@mitadic](github.com/mitadic)                                                                                  | `milosgtadic` at yahoo.com                                                                                                       |
 
 
 ## License
