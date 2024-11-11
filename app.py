@@ -200,7 +200,8 @@ def create_user(user: schemas.UserCreate):
 def delete_user(
         user: Annotated[schemas.User, Depends(auth.get_current_active_user)]
 ):
-    """Delete a user by their id."""
+    """Delete the currently active User.
+    But first delete related Convos and those Convos' QAPairs."""
     try:
         user_convos = data_manager.get_all_convos(user.id)
         for convo in user_convos:
