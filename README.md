@@ -13,6 +13,7 @@ LLM API | Gemini API
 Authentication | fastapi.security.OAuth2PasswordBearer
 RAG (vector DB embeddings and sim. search) | Faiss
 UI | auto-generated Swagger UI
+
 To see all the project dependencies, check out [requirements.txt](/requirements.txt)
 
 ## Installation
