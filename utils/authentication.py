@@ -45,14 +45,19 @@ def validate_pw(password: str):
 
 
 def verify_password(plain_password, hashed_password):
+    """Compares plain pw with the stored one (which is hashed)"""
     return pwd_context.verify(plain_password, hashed_password)
 
 
 def get_password_hash(password):
+    """Hash the received password"""
     return pwd_context.hash(password)
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None):
+    """Generate a JWT token for a bearer.
+    data == {"sub": f"{username}"}
+    """
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
@@ -68,7 +73,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
     Depends(oauth2_scheme) is crucial.
     It is what protects a route (all the way up the dependency chain, through
     to the endpoint in app.py) which makes FastAPI expect an:
-    Authorization header with a Bearer token.
+    Authorization header with an authentication token.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -92,6 +97,5 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
 async def get_current_active_user(
     current_user: Annotated[schemas.User, Depends(get_current_user)],
 ):
-    # if current_user.disabled:
-    #     raise HTTPException(status_code=400, detail="Inactive user")
+    """OAuth2PasswordBearer is consulted to determine the current active U"""
     return current_user

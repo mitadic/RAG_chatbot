@@ -145,7 +145,17 @@ async def upload_document(file: UploadFile = File(...)):
 
 @app.delete("/remove_document/{doc_id}")
 def remove_document(doc_id: int):
-    global index
+    """
+    Remove all traces of a document (to update future querying results)
+    3-parts procedure:
+    1. Temporarily store chunk IDs that relate to Doc (which are mapped to
+    correspond to the indices of the embeddings inside the vector database)
+    2. data_manager.delete_doc which oddly, but fittingly to the project, will
+    also remove the related chunks from SQLite DB. Why oddly? Because so far
+    data_manager methods have followed a Single Responsibility Principle
+    3. Remove the embeddings from the FAISS index
+    """
+    # global index # can be used to specify within a ft that NOT declaration
     try:
         # ORM first
         filename = data_manager.get_doc(doc_id).title
@@ -230,7 +240,7 @@ def change_password(
         user: Annotated[schemas.User, Depends(auth.get_current_active_user)],
         new_pw: str
 ):
-    """Update user's password, authorized as user"""
+    """Update user's password for the current active user"""
     try:
         auth.validate_pw(new_pw)  # will raise HTTPException
         user.pw = auth.get_password_hash(new_pw)
@@ -245,7 +255,7 @@ def change_username(
         user: Annotated[schemas.User, Depends(auth.get_current_active_user)],
         new_name: str
 ):
-    """Update username, authorized as user"""
+    """Update username for the current active user"""
     try:
         auth.validate_user_name(new_name)  # will raise HTTPException
         user.name = new_name
@@ -287,9 +297,12 @@ def load_convo(
         user: Annotated[schemas.User, Depends(auth.get_current_active_user)],
         convo_id: int
 ):
-    """Retrieve the conversation as a composite of:
+    """
+    Retrieve the conversation as a composite of:
         (1) Convo object which regards the user_id
-        (2) The QAPair objects with the appropriate convo_id"""
+        (2) The QAPair objects with the appropriate convo_id
+    Will not be able to access Convo without convo owner authenticated
+    """
     try:
         convo = data_manager.get_convo(convo_id)
         auth.validate_users_rights_to_convo(user.id, convo_id)  # will raise E

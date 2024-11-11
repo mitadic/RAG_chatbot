@@ -162,8 +162,13 @@ class SQLiteDataManager:
         return doc
 
     def delete_doc(self, doc_id: int):
-        """Remove a Doc from the SQLite database.
-        But remove all related chunks and records of relation first."""
+        """
+        Remove a Doc from the SQLite database.
+        But remove all related chunks and records of relation first.
+        This is a conscious design oddity compared to the rest of the methods.
+        NOTE: Though not necessary or more readable, it communicates that we
+        never want to delete a doc and leave chunks floating about.
+        """
         doc_chunks = self.get_all_doc_chunks(doc_id)
         for chunk in doc_chunks:
             self.delete_doc_chunk(doc_id, chunk.id)
