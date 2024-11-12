@@ -1,5 +1,5 @@
 # RAG_chatbot
-A chatbot service making use of an LLM API, enhanced with RAG.
+A chatbot service utilising an LLM API, enhanced with RAG.
 ## Demo
 
 | ![demo](/assets/demo.gif) |
@@ -64,7 +64,7 @@ To see all the project dependencies, check out [requirements.txt](/requirements.
 ![image](/assets/db_design_blueprint.png)
 
 ### Components Configuration
-The diagram below focuses on the traversal of the Query. Note what is fed into the Query Wrapper before the resulting string is sent to Gemini API.
+The diagram below focuses on the travel path of the Query. Note what is fed into the Query Wrapper before the resulting string is sent to Gemini API.
 
 ![image](/assets/query_traversal_diagram.png)
 
@@ -77,7 +77,7 @@ If you have any feedback, feel free to reach out.
 | [@mitadic](github.com/mitadic)                                                                                  | `milosgtadic` at yahoo.com                                                                                                       |
 
 ## Credits
-This has been a final bootcamp project where I've had the good fortune of [Zisis Batzos's](github.com/zisismp4) mentorship. While I've independently set the project targets, this was made possible with the help of Zisis's expertise and guidance which have equiped me with the technical vocabulary and the clarity of mind to limit the app's utility and maximize the extent of my learning about Generative AI. Thank you Zisis!
+This has been a final bootcamp project where I've had the good fortune of [Zisis Batzos](github.com/zisismp4)'s mentorship. While I've set the project targets mostly independently, this was made possible with the help of Zisis's expertise and guidance which have equiped me with the technical vocabulary and the clarity of mind to limit the app's utility, for instance by omitting a flashy front-end, and maximize the extent of my learning about Generative AI and the general RAG application design.
 
 ## License
 
