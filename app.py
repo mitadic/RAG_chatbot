@@ -50,7 +50,7 @@ app = FastAPI()
 def get_relevant_chunks(user_query: str, top_k: int = 5) -> str:
     """Embed user query to perform similarity search and retrieve relevant
     sentences from the vector database"""
-    results = "\n'Source facts from the documents provided':\n"
+    results = "\n\nSource facts from the documents provided:\n"
     try:
         chunks_count = data_manager.get_chunks_count()
         if chunks_count < 1:
