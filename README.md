@@ -38,9 +38,9 @@ Run the app.
 python3 app.py
 ```
 
-Visit the now locally hosted homepage via any browser. Create users, then log in as those users via the 🔒 symbol to simulate conversations with Gemini.
+Visit the now locally hosted service via any browser by c/p the following url. Create users, then log in as those users via the 🔒 symbol to simulate conversations with Gemini.
 ```
-https://127.0.0.1:8000
+127.0.0.1:8000/docs#
 ```
 
 If you wish to start over from scratch and initialize a fresh database, delete the files (`.sqlite` and `.index`) in the directory `/data/`. You may want to do so if you lose track of users' passwords, because the emulated "admin" can't delete such users.
