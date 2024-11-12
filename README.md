@@ -7,6 +7,8 @@ A chatbot service utilising an LLM API, enhanced with RAG.
 
 ## Installation
 
+### Installation steps
+
 1. Clone the repository; enter the created directory.
 
         git clone https://github.com/mitadic/RAG_chatbot; cd RAG_chatbot
@@ -28,29 +30,21 @@ A chatbot service utilising an LLM API, enhanced with RAG.
 > [!NOTE]
 > These installation steps portray a generic case on UNIX-like systems (Linux, Mac OS).
 
-## Usage/Examples
+### Usage
 
 Run the app.
 ```bash
 python3 app.py
 ```
 
-Visit the now locally hosted homepage via any browser.
+Visit the now locally hosted homepage via any browser. Create users, then log in as those users via the 🔒 symbol to simulate conversations with Gemini.
 ```
 https://127.0.0.1:8000
 ```
 
-If you wish to start over from scratch and initialize a fresh database, delete the files (`.sqlite` and `.index`) in the directory `data/`
+If you wish to start over from scratch and initialize a fresh database, delete the files (`.sqlite` and `.index`) in the directory `data/`. You may want to do so if you lose track of users' passwords, because the "admin" can't delete such users.
 
 ## Architecture
-
-### Components
-Traversal of the Query. Note what is fed into the Query Wrapper before the resulting string is sent to Gemini API.
-
-![image](https://github.com/user-attachments/assets/6f5f177a-ea62-43cc-9647-19bc6cf0a5dd)
-
-### SQLite Database blueprint
-<img width="692" alt="image" src="https://github.com/user-attachments/assets/6d6224c3-a19a-4292-9ec0-bc9aa57088f4">
 
 ### Project features and technologies overview
 | Component | Technology |
@@ -64,6 +58,14 @@ RAG (vector DB embeddings and sim. search) | Faiss
 UI | auto-generated Swagger UI
 
 To see all the project dependencies, check out [requirements.txt](/requirements.txt)
+
+### Components
+Traversal of the Query. Note what is fed into the Query Wrapper before the resulting string is sent to Gemini API.
+
+![image](https://github.com/user-attachments/assets/6f5f177a-ea62-43cc-9647-19bc6cf0a5dd)
+
+### SQLite Database blueprint
+![image](https://github.com/user-attachments/assets/88828716-515a-40ee-aae5-7d019d2f8635)
 
 ## Feedback
 
