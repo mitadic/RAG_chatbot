@@ -1,7 +1,7 @@
 # RAG_chatbot
 A chatbot service utilising an LLM API, enhanced with RAG.
 
-![image](https://github.com/user-attachments/assets/eb345682-0e15-4da9-b754-72fb10451fa7)
+![image](https://github.com/user-attachments/assets/38a7a3eb-c931-4d24-bc79-04ba56bb57d2)
 
 <img width="692" alt="image" src="https://github.com/user-attachments/assets/6d6224c3-a19a-4292-9ec0-bc9aa57088f4">
 
