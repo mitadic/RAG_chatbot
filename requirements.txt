@@ -1,17 +1,17 @@
-pydantic
-sqlalchemy
-fastapi
-python-multipart  # FYI also included when you install <fastapi[standard]>
-uvicorn
-python-dotenv
-google-api-python-client
-google
-google-generativeai
-pyjwt
-passlib[bcrypt]
+pydantic==2.9.2
+sqlalchemy==2.0.35
+fastapi==0.115.0
+python-multipart==0.0.12  # FYI also included when you install <fastapi[standard]>
+uvicorn==0.31.0
+python-dotenv==1.0.1
+google-api-python-client==2.147.0
+google==3.0.0
+google-generativeai==0.8.2
+pyjwt==2.9.0
+passlib[bcrypt]==1.7.4
 # google-cloud
 # google-cloud-vision
-pdfplumber
-faiss-cpu  # Facebook AI Similarity Search for client-side VectorDB embeddings
-sentence_transformers
-numpy
+pdfplumber==0.11.4
+faiss-cpu==1.9.0  # Facebook AI Similarity Search for client-side VectorDB embeddings
+sentence_transformers==3.2.1
+numpy==2.1.3
