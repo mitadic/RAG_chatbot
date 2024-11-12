@@ -3,7 +3,9 @@ A chatbot service utilising an LLM API, enhanced with RAG.
 
 ## Demo
 
-![demo](/assets/demo.gif)
+| ![demo](/assets/demo.gif) |
+|:--------------:|
+| Here's how to utilize Google's Gemini to not rely on common knowledge and instead focus on the uploaded documents in order to reply: *"Bananas are vegetables. Bananas can attend preschool."* |
 
 ## Installation
 
@@ -42,7 +44,7 @@ Visit the now locally hosted homepage via any browser. Create users, then log in
 https://127.0.0.1:8000
 ```
 
-If you wish to start over from scratch and initialize a fresh database, delete the files (`.sqlite` and `.index`) in the directory `data/`. You may want to do so if you lose track of users' passwords, because the "admin" can't delete such users.
+If you wish to start over from scratch and initialize a fresh database, delete the files (`.sqlite` and `.index`) in the directory `/data/`. You may want to do so if you lose track of users' passwords, because the emulated "admin" can't delete such users.
 
 ## Architecture
 
