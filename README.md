@@ -1,23 +1,9 @@
 # RAG_chatbot
 A chatbot service utilising an LLM API, enhanced with RAG.
 
-![image](https://github.com/user-attachments/assets/6f5f177a-ea62-43cc-9647-19bc6cf0a5dd)
+## Demo
 
-
-<img width="692" alt="image" src="https://github.com/user-attachments/assets/6d6224c3-a19a-4292-9ec0-bc9aa57088f4">
-
-## Project features and technologies overview
-| Component | Technology |
-| --------- | ---------- |
-Database | SQLite
-Database interaction | sqlalchemy.orm
-Endpoint routing | FastAPI
-LLM API | Gemini API
-Authentication | fastapi.security.OAuth2PasswordBearer
-RAG (vector DB embeddings and sim. search) | Faiss
-UI | auto-generated Swagger UI
-
-To see all the project dependencies, check out [requirements.txt](/requirements.txt)
+![demo](/assets/demo.gif)
 
 ## Installation
 
@@ -54,8 +40,30 @@ Visit the now locally hosted homepage via any browser.
 https://127.0.0.1:8000
 ```
 
-> [!NOTE]
-> If you wish to start over from scratch and initialize a fresh database, delete the files (`.sqlite` and `.index`) in the directory `data/`
+If you wish to start over from scratch and initialize a fresh database, delete the files (`.sqlite` and `.index`) in the directory `data/`
+
+## Architecture
+
+### Components
+Traversal of the Query. Note what is fed into the Query Wrapper before the resulting string is sent to Gemini API.
+
+![image](https://github.com/user-attachments/assets/6f5f177a-ea62-43cc-9647-19bc6cf0a5dd)
+
+### SQLite Database blueprint
+<img width="692" alt="image" src="https://github.com/user-attachments/assets/6d6224c3-a19a-4292-9ec0-bc9aa57088f4">
+
+### Project features and technologies overview
+| Component | Technology |
+| --------- | ---------- |
+Database | SQLite
+Database interaction | sqlalchemy.orm
+Endpoint routing | FastAPI
+LLM API | Gemini API
+Authentication | fastapi.security.OAuth2PasswordBearer
+RAG (vector DB embeddings and sim. search) | Faiss
+UI | auto-generated Swagger UI
+
+To see all the project dependencies, check out [requirements.txt](/requirements.txt)
 
 ## Feedback
 
