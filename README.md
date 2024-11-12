@@ -64,10 +64,10 @@ To see all the project dependencies, check out [requirements.txt](/requirements.
 ### Components
 Traversal of the Query. Note what is fed into the Query Wrapper before the resulting string is sent to Gemini API.
 
-![image](https://github.com/user-attachments/assets/6f5f177a-ea62-43cc-9647-19bc6cf0a5dd)
+![image](/assets/query_traversal_diagram.png)
 
 ### SQLite Database blueprint
-![image](https://github.com/user-attachments/assets/88828716-515a-40ee-aae5-7d019d2f8635)
+![image](/assets/db_design_blueprint.png)
 
 ## Feedback
 
