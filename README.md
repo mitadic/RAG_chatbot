@@ -8,6 +8,9 @@ A chatbot service utilising an LLM API, enhanced with RAG.
 
 ## Installation
 
+> [!NOTE]
+> These installation steps portray a generic case on Linux and Mac OS.
+
 ### Installation steps
 
 1. Clone the repository; enter the created directory.
@@ -16,11 +19,11 @@ A chatbot service utilising an LLM API, enhanced with RAG.
 
 2. Create a virtual environment; activate it.
 
-        python3 -m venv .; source ./bin/activate
+        python -m venv .; source ./bin/activate
 
 3. Install the required packages for the venv.
 
-        pip3 install -r requirements.txt
+        pip install -r requirements.txt
 
 4. Obtain your personal Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
 
@@ -28,14 +31,11 @@ A chatbot service utilising an LLM API, enhanced with RAG.
 
         echo API_KEY=ReplaceThisWithYourKey > .env
 
-> [!NOTE]
-> These installation steps portray a generic case on UNIX-like systems (Linux, Mac OS).
-
 ### Usage
 
 Run the app.
 ```bash
-python3 app.py
+python app.py
 ```
 
 Visit the now locally hosted service via any browser by c/p the following url. Create users, then log in as those users via the 🔒 symbol to simulate conversations with Gemini.
