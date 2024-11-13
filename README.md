@@ -79,6 +79,12 @@ If you have any feedback, feel free to reach out.
 ## Credits
 This has been a final bootcamp project where I've had the good fortune of [Zisis Batzos](github.com/zisismp4)'s mentorship. While I've set the project targets mostly independently, this was made possible with the help of Zisis's expertise and guidance which have equiped me with the technical vocabulary and the clarity of mind to limit the app's utility, for instance by omitting a flashy front-end, and maximize the extent of my learning about Generative AI and the general RAG application design.
 
+| Visual resource | Tool |
+| :---- | :---- |
+| demo gif | [ffmpeg](https://www.ffmpeg.org/)
+| Database diagram | [dbdiagram.io](https://dbdiagram.io/home) |
+| Components configuration diagram | [draw.io](https://www.app.diagrams.net/) |
+
 ## License
 
 [CC0 1.0 Universal](/LICENSE)
